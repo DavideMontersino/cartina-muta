@@ -1,0 +1,6 @@
+# Cloudflare Pages configuration for cartina-muta.
+# This is a fully static SPA — no Functions, no bindings.
+# Deploy with: npm run deploy  (wrangler pages deploy dist/ --project-name=cartina-muta)
+name = "cartina-muta"
+compatibility_date = "2024-09-23"
+pages_build_output_dir = "dist"
