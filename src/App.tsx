@@ -14,6 +14,8 @@ export function App() {
   const [selection, setSelection] = useState<Selection | null>(null);
   const [config, setConfig] = useState<GameConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Bumped to remount GameScreen for a fresh run of the same province+mode.
+  const [runKey, setRunKey] = useState(0);
 
   // When a province is chosen, lazily load its border geometry, then play.
   useEffect(() => {
@@ -40,7 +42,14 @@ export function App() {
   };
 
   if (config) {
-    return <GameScreen config={config} onExit={exit} />;
+    return (
+      <GameScreen
+        key={runKey}
+        config={config}
+        onExit={exit}
+        onRestart={() => setRunKey((k) => k + 1)}
+      />
+    );
   }
 
   if (selection) {

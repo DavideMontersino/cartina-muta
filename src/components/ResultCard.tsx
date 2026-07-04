@@ -16,7 +16,12 @@ function formatClock(totalSeconds: number): string {
   return `${m}:${r.toString().padStart(2, "0")}`;
 }
 
-export function ResultCard({ state, submission, onExit }: ResultCardProps) {
+export function ResultCard({
+  state,
+  submission,
+  onRestart,
+  onExit,
+}: ResultCardProps) {
   const total = state.map.features.length;
   const isEnergy = state.mode.kind === "energy";
   const perfect = state.found === total && state.mistakes === 0;
@@ -66,13 +71,22 @@ export function ResultCard({ state, submission, onExit }: ResultCardProps) {
           </div>
         </div>
         <SignInCard submission={submission} />
-        <button
-          type="button"
-          className="btn btn--ghost result-card__again"
-          onClick={onExit}
-        >
-          Gioca ancora
-        </button>
+        <div className="result-card__actions">
+          <button
+            type="button"
+            className="btn result-card__again"
+            onClick={onRestart}
+          >
+            Gioca ancora
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost result-card__home"
+            onClick={onExit}
+          >
+            Home page
+          </button>
+        </div>
       </div>
     </div>
   );

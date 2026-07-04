@@ -81,12 +81,11 @@ export type GameAction =
 export const ENERGY_CONFIG = {
   start: 100,
   max: 100,
-  drainPerSecond: 1.5,
+  drainPerSecond: 0.5,
   /** Drain rate grows this fraction per minute survived. */
   drainGrowthPerMinute: 0.1,
   refill: { bullseye: 20, near: 10, far: 5 },
   wrongAttemptCost: 8,
-  skipCost: 15,
   maxAttempts: 3,
   /** Base score per attempt number (1st/2nd/3rd try). */
   attemptBase: [100, 60, 30],
@@ -364,20 +363,13 @@ export function reducer(state: GameState, action: GameAction): GameState {
       const status = state.status.slice();
       status[target] = "missed";
       if (state.mode.kind === "energy") {
-        const energy = clamp(
-          state.energy - ENERGY_CONFIG.skipCost,
-          0,
-          ENERGY_CONFIG.max,
-        );
-        const next = {
+        // Skipping/revealing just moves on — no extra energy penalty.
+        return advance({
           ...state,
           status,
           missed: state.missed + 1,
-          energy,
           attempts: 0,
-        };
-        if (energy <= 0) return { ...next, phase: "finished" as const };
-        return advance(next);
+        });
       }
       return advance({ ...state, status, missed: state.missed + 1 });
     }

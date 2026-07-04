@@ -491,10 +491,9 @@ button {
   right: 0;
   z-index: 5;
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: flex-start;
-  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 0.75rem;
   padding: 0.9rem clamp(0.75rem, 3vw, 2rem) 0.75rem;
   background: linear-gradient(
     180deg,
@@ -506,31 +505,86 @@ button {
 .hud--overlay > * {
   pointer-events: auto;
 }
-.hud__top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+/* Menu sits inline, to the left of the energy bar (not above it). */
+.hud__menu {
+  flex: 0 0 auto;
 }
 .energy-bar {
+  flex: 1 1 auto;
   height: 10px;
   border-radius: 999px;
   background: var(--paper-2);
   border: 1px solid var(--paper-edge);
   overflow: hidden;
+  display: flex;
 }
 .energy-bar__fill {
+  width: var(--energy);
   height: 100%;
   background: linear-gradient(90deg, var(--olive), var(--teal));
   transition:
     width 0.25s ease,
+    height 0.25s ease,
     background 0.25s ease;
 }
 .energy-bar--low .energy-bar__fill {
   background: linear-gradient(90deg, var(--terracotta), var(--gold));
 }
+.hud__stats {
+  flex: 0 0 auto;
+}
+/* The prompt (name to find + skip) drops to its own line below the bar row. */
 .prompt--overlay {
+  flex: 1 1 100%;
   padding: 0;
+}
+
+/* Landscape: energy bar becomes a vertical rail on the right; the name-to-find
+   floats as a compact overlay just left of it, and never grows with viewport
+   width. The map stays full-bleed underneath (HUD is pointer-events:none). */
+@media (orientation: landscape) {
+  .hud--overlay {
+    inset: 0;
+    align-items: flex-start;
+    gap: 0.5rem 0.75rem;
+    padding: 0.75rem;
+    background: none;
+  }
+  .energy-bar {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    width: 12px;
+    height: auto;
+    flex: none;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+  .energy-bar__fill {
+    width: 100%;
+    height: var(--energy);
+  }
+  .prompt--overlay {
+    position: absolute;
+    top: 0.75rem;
+    right: calc(0.75rem + 12px + 0.6rem);
+    left: auto;
+    flex: none;
+    width: auto;
+    max-width: 45vw;
+    flex-direction: column;
+    align-items: flex-end;
+    text-align: right;
+    gap: 0.3rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 12px;
+    background: rgba(242, 233, 214, 0.9);
+    box-shadow: var(--shadow);
+  }
+  .prompt--overlay .prompt__name {
+    font-size: 1.4rem;
+  }
 }
 .energy-toast {
   position: absolute;
@@ -671,8 +725,14 @@ button {
   font-size: 0.82rem;
   color: var(--terracotta);
 }
-.result-card__again {
+.result-card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   margin-top: 0.9rem;
+}
+.result-card__actions .btn {
+  width: 100%;
 }
 
 .signin__hint--center {

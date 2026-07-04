@@ -1,4 +1,5 @@
 import {
+  type CSSProperties,
   useCallback,
   useEffect,
   useMemo,
@@ -24,6 +25,7 @@ import { ResultCard } from "./ResultCard";
 interface GameScreenProps {
   config: GameConfig;
   onExit: () => void;
+  onRestart: () => void;
 }
 
 function formatClock(totalSeconds: number): string {
@@ -33,7 +35,7 @@ function formatClock(totalSeconds: number): string {
   return `${m}:${r.toString().padStart(2, "0")}`;
 }
 
-export function GameScreen({ config, onExit }: GameScreenProps) {
+export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   const isEnergy = config.mode.kind === "energy";
   const [state, dispatch] = useReducer(reducer, config, (c) => createGame(c));
   const [flashIndex, setFlashIndex] = useState<number | null>(null);
@@ -314,25 +316,27 @@ export function GameScreen({ config, onExit }: GameScreenProps) {
         </div>
 
         <header className="hud hud--overlay">
-          <div className="hud__top">
-            <button type="button" className="btn btn--ghost" onClick={onExit}>
-              ← Menu
-            </button>
-            <div className="hud__stats">
-              <div className="stat">
-                <span className="stat__value">{state.score}</span>
-                <span className="stat__label">punti</span>
-              </div>
-            </div>
-          </div>
+          <button
+            type="button"
+            className="btn btn--ghost hud__menu"
+            onClick={onExit}
+          >
+            ← Menu
+          </button>
           <div
             className={`energy-bar ${state.energy <= 25 ? "energy-bar--low" : ""}`}
             aria-hidden
           >
             <div
               className="energy-bar__fill"
-              style={{ width: `${state.energy}%` }}
+              style={{ "--energy": `${state.energy}%` } as CSSProperties}
             />
+          </div>
+          <div className="hud__stats">
+            <div className="stat">
+              <span className="stat__value">{state.score}</span>
+              <span className="stat__label">punti</span>
+            </div>
           </div>
           {playing && target !== null && (
             <div className="prompt prompt--overlay">
@@ -355,7 +359,7 @@ export function GameScreen({ config, onExit }: GameScreenProps) {
           <ResultCard
             state={state}
             submission={submission}
-            onRestart={onExit}
+            onRestart={onRestart}
             onExit={onExit}
           />
         )}

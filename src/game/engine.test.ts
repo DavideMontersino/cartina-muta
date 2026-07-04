@@ -345,13 +345,14 @@ describe("reducer — energy mode", () => {
     expect(s.phase).toBe("finished");
   });
 
-  it("skip costs energy and reveals the target", () => {
+  it("skip reveals the target and advances without costing energy", () => {
     let s = createGame(startEnergy(3), noWeightRng);
     const target = currentTarget(s) as number;
     s = reducer(s, { type: "skip" });
 
     expect(s.status[target]).toBe("missed");
-    expect(s.energy).toBe(ENERGY_CONFIG.start - ENERGY_CONFIG.skipCost);
+    expect(s.energy).toBe(ENERGY_CONFIG.start);
+    expect(s.attempts).toBe(0);
     expect(currentTarget(s)).not.toBe(target);
   });
 
