@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { isValidEmail, validateSignIn } from "./validation";
+import { isValidEmail, validateName, validateSignIn } from "./validation";
+
+describe("validateName", () => {
+  it("trims and accepts a normal name", () => {
+    expect(validateName("  Ada Lovelace  ")).toEqual({
+      ok: true,
+      name: "Ada Lovelace",
+    });
+  });
+  it("rejects empty and overlong names", () => {
+    expect(validateName("   ").ok).toBe(false);
+    expect(validateName("x".repeat(41)).ok).toBe(false);
+  });
+});
 
 describe("isValidEmail", () => {
   it("accepts plausible addresses", () => {
