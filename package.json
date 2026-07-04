@@ -12,15 +12,19 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "extract-map": "tsx scripts/extract-map.ts",
+    "db:migrate": "wrangler d1 migrations apply cartina-muta-auth --remote",
+    "db:migrate:local": "wrangler d1 migrations apply cartina-muta-auth --local",
     "deploy": "npm run build && wrangler pages deploy dist/ --project-name=cartina-muta"
   },
   "dependencies": {
+    "better-auth": "1.6.23",
     "d3-geo": "^3.1.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.8",
+    "@cloudflare/workers-types": "^4.20260702.1",
     "@types/d3-geo": "^3.1.0",
     "@types/node": "^22.20.0",
     "@types/react": "^19.1.6",

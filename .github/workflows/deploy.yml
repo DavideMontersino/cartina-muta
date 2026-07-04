@@ -34,6 +34,19 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Apply pending D1 migrations before deploying so code never ships against
+      # a schema the DB doesn't have. NOT continue-on-error: a failed migration
+      # must block the deploy. Requires CLOUDFLARE_API_TOKEN to have
+      # "Account > D1 > Edit" scope (in addition to Pages: Edit).
+      - name: Run D1 migrations
+        if: github.ref == 'refs/heads/main'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "3.90.0"
+          command: d1 migrations apply cartina-muta-auth --remote
+
       # Pin wranglerVersion: without it wrangler-action tries to `npx
       # wrangler@<latest>`, which npx cannot auto-install in CI and the step
       # exits 1 (guardrail: wrangler-action npx-installs latest).

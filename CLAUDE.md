@@ -28,11 +28,22 @@ npm run extract-map  # regenerate per-province comuni.json from the ISTAT source
 ## Deploy
 
 CI (`.github/workflows/ci.yml`) runs lint/typecheck/test/build on every push and PR.
-Deploy (`.github/workflows/deploy.yml`) builds and ships to Cloudflare Pages on push to
-`main`, then verifies the live `<meta name="build-sha">` matches the pushed commit.
+Deploy (`.github/workflows/deploy.yml`) applies pending D1 migrations, builds and ships
+to Cloudflare Pages on push to `main`, then verifies the live `<meta name="build-sha">`
+matches the pushed commit.
 
-Required GitHub Actions secrets: `CLOUDFLARE_API_TOKEN` (scope: Cloudflare Pages: Edit)
-and `CLOUDFLARE_ACCOUNT_ID`.
+Required GitHub Actions secrets: `CLOUDFLARE_API_TOKEN` (scopes: **Cloudflare Pages: Edit**
+AND **Account > D1 > Edit**) and `CLOUDFLARE_ACCOUNT_ID`.
+
+## Auth (Better Auth)
+
+Email + magic-link auth on a D1 database (`cartina-muta-auth`), mirroring the Peak setup.
+Backend lives in `src/auth/*` (config/email/client) and `functions/api/auth/[[route]].ts`;
+schema in `migrations/`. Runtime secrets are **Cloudflare Pages secrets** on the
+`cartina-muta` project (not GitHub secrets): `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`,
+`RESEND_API_KEY`. For local dev, copy `.dev.vars.example` to `.dev.vars` (gitignored) and
+run `wrangler pages dev` (with `EMAIL_DEV_STUB=1`, magic links print to the console).
+`EMAIL_FROM` in `src/auth/email.ts` must stay on a Resend-verified domain.
 
 ## Adding a map
 

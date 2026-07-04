@@ -1,0 +1,19 @@
+# Local secrets for `wrangler pages dev` — copy to `.dev.vars` (gitignored) and
+# fill in. In production these are set with:
+#   wrangler pages secret put <NAME> --project-name cartina-muta
+
+# Signs session cookies/tokens. Generate: openssl rand -base64 32
+BETTER_AUTH_SECRET=
+
+# Canonical site origin used to build links + validate origins.
+# Locally this is your dev origin, e.g. http://localhost:5173
+BETTER_AUTH_URL=http://localhost:5173
+
+# Resend "Sending access" key. In production this MUST be set.
+RESEND_API_KEY=
+
+# Dev-only escape hatch: with EMAIL_DEV_STUB=1 and a blank RESEND_API_KEY,
+# magic/verification links are logged to the console instead of sent. Leave this
+# UNSET in production — there, a missing key makes email fail loudly rather than
+# faking a successful send.
+EMAIL_DEV_STUB=1

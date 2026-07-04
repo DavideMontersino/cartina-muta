@@ -1,6 +1,20 @@
 # Cloudflare Pages configuration for cartina-muta.
-# This is a fully static SPA — no Functions, no bindings.
 # Deploy with: npm run deploy  (wrangler pages deploy dist/ --project-name=cartina-muta)
 name = "cartina-muta"
 compatibility_date = "2024-09-23"
+# better-auth pulls in transitive deps that expect Node built-ins
+# (node:crypto, node:async_hooks) at the edge. nodejs_compat lets the Pages
+# Functions bundle resolve them. Requires compatibility_date >= 2024-09-23.
+compatibility_flags = ["nodejs_compat"]
+# REQUIRED for the flags/bindings above to take effect: without
+# pages_build_output_dir, `wrangler pages deploy` ignores this whole file
+# (it prints "Ignoring configuration file"), so nodejs_compat never reaches the
+# Functions bundle and the deploy fails with `No such module "node:crypto"`.
 pages_build_output_dir = "dist"
+
+# Auth database (Better Auth tables). Migrations live in ./migrations and are
+# applied with `npm run db:migrate` (remote) — see deploy.yml.
+[[d1_databases]]
+binding = "DB"
+database_name = "cartina-muta-auth"
+database_id = "cd4a4186-ac6f-4b10-ab15-aff13f1b41a5"

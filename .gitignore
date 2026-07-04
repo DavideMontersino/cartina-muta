@@ -3,6 +3,14 @@ dist
 .wrangler
 *.local
 .DS_Store
+tsconfig.tsbuildinfo
+.vscode
+# direnv / local env exports — may contain real API keys. Never commit.
+.envrc
+
+# Local Pages Functions secrets (BETTER_AUTH_SECRET, RESEND_API_KEY, …).
+# Never commit — see .dev.vars.example for the shape.
+.dev.vars
 
 # Raw source dataset — large; the extracted per-map JSON is committed instead.
 italy-municipalities.geojson
