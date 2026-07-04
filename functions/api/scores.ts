@@ -7,7 +7,7 @@ import { validateScoreSubmission } from "../../src/leaderboard/validation";
 // live rank on that (province, mode, duration) board. Requires a signed-in
 // session with a name already set (see NamePrompt.tsx / SignInCard.tsx).
 export const onRequestPost: PagesFunction<AuthEnv> = async (ctx) => {
-  const auth = createAuth(ctx.env);
+  const auth = createAuth(ctx.env, ctx.request);
   const session = await auth.api.getSession({ headers: ctx.request.headers });
   if (!session?.user?.name) {
     return Response.json(
