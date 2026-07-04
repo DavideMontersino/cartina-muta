@@ -3,7 +3,11 @@ import { atPhrases } from "./data/at";
 import { biPhrases } from "./data/bi";
 import { cnPhrases } from "./data/cn";
 import { defaultPhrases } from "./data/default";
+import { gePhrases } from "./data/ge";
+import { imPhrases } from "./data/im";
 import { noPhrases } from "./data/no";
+import { spPhrases } from "./data/sp";
+import { svPhrases } from "./data/sv";
 import { toPhrases } from "./data/to";
 import { vbPhrases } from "./data/vb";
 import { vcPhrases } from "./data/vc";
@@ -15,7 +19,11 @@ const provincePhrases: Record<string, PartialPhraseSet> = {
   at: atPhrases,
   bi: biPhrases,
   cn: cnPhrases,
+  ge: gePhrases,
+  im: imPhrases,
   no: noPhrases,
+  sp: spPhrases,
+  sv: svPhrases,
   to: toPhrases,
   vb: vbPhrases,
   vc: vcPhrases,

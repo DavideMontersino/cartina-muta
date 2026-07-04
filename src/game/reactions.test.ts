@@ -60,8 +60,21 @@ describe("getPhrasePool", () => {
     }
   });
 
-  it("resolves a non-empty pool for every event across all Piedmont provinces", () => {
-    const provinces = ["al", "at", "bi", "cn", "no", "to", "vb", "vc"];
+  it("resolves a non-empty pool for every event across all covered provinces", () => {
+    const provinces = [
+      "al",
+      "at",
+      "bi",
+      "cn",
+      "no",
+      "to",
+      "vb",
+      "vc",
+      "ge",
+      "im",
+      "sp",
+      "sv",
+    ];
     const events = [
       "correct",
       "wrong",
