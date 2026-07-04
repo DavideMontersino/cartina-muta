@@ -34,6 +34,7 @@ export const onRequestPost: PagesFunction<AuthEnv> = async (ctx) => {
     missed,
     mistakes,
     elapsedMs,
+    score,
     actionLog,
     totalRegions,
   } = validation.value;
@@ -45,8 +46,8 @@ export const onRequestPost: PagesFunction<AuthEnv> = async (ctx) => {
 
   await ctx.env.DB.prepare(
     `INSERT INTO "game_result"
-      ("id","userId","provinceId","modeKind","modeDurationSeconds","totalRegions","found","missed","mistakes","elapsedMs","actionLog","createdAt")
-     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)`,
+      ("id","userId","provinceId","modeKind","modeDurationSeconds","totalRegions","found","missed","mistakes","elapsedMs","score","actionLog","createdAt")
+     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)`,
   )
     .bind(
       id,
@@ -59,6 +60,7 @@ export const onRequestPost: PagesFunction<AuthEnv> = async (ctx) => {
       missed,
       mistakes,
       elapsedMs,
+      score ?? null,
       JSON.stringify(actionLog),
       createdAt,
     )
