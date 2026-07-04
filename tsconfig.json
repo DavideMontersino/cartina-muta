@@ -16,7 +16,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "types": ["node", "vite/client", "vitest/globals"]
+    "types": ["node", "vite/client", "vitest/globals", "@cloudflare/workers-types"]
   },
-  "include": ["src", "scripts", "vite.config.ts"]
+  "include": ["src", "scripts", "vite.config.ts", "functions"]
 }

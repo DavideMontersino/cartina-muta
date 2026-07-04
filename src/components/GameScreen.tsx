@@ -1,10 +1,21 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import {
   createGame,
   currentTarget,
   type GameConfig,
   reducer,
 } from "../game/engine";
+import type {
+  ActionLogEntry,
+  ScoreSubmissionPayload,
+} from "../leaderboard/types";
 import { MapCanvas } from "./MapCanvas";
 import { ResultCard } from "./ResultCard";
 
@@ -29,9 +40,44 @@ export function GameScreen({ config, onExit }: GameScreenProps) {
   const wrongTimer = useRef<number | undefined>(undefined);
   const revealTimer = useRef<number | undefined>(undefined);
 
+  // Precise action log for leaderboard replay — kept out of the pure
+  // reducer, which only tracks the rounded whole-second `elapsed`.
+  const startRef = useRef(performance.now());
+  const logRef = useRef<ActionLogEntry[]>([]);
+  const [finalElapsedMs, setFinalElapsedMs] = useState<number | null>(null);
+
   const total = config.map.features.length;
   const target = currentTarget(state);
   const playing = state.phase === "playing";
+
+  // Capture the precise elapsed time the instant the game finishes, not
+  // whenever a submission eventually happens — otherwise time spent reading
+  // the result screen would inflate the recorded score.
+  useEffect(() => {
+    if (state.phase === "finished" && finalElapsedMs === null) {
+      setFinalElapsedMs(Math.round(performance.now() - startRef.current));
+    }
+  }, [state.phase, finalElapsedMs]);
+
+  const submission = useMemo<ScoreSubmissionPayload | null>(() => {
+    if (finalElapsedMs === null) return null;
+    return {
+      provinceId: config.map.id,
+      mode: config.mode,
+      found: state.found,
+      missed: state.missed,
+      mistakes: state.mistakes,
+      elapsedMs: finalElapsedMs,
+      actionLog: logRef.current,
+    };
+  }, [
+    finalElapsedMs,
+    config.map.id,
+    config.mode,
+    state.found,
+    state.missed,
+    state.mistakes,
+  ]);
 
   // Tick once per second while playing (drives the timer and elapsed clock).
   useEffect(() => {
@@ -64,15 +110,31 @@ export function GameScreen({ config, onExit }: GameScreenProps) {
 
   const handleSkip = useCallback(() => {
     if (target === null) return;
+    logRef.current.push({
+      tMs: Math.round(performance.now() - startRef.current),
+      type: "skip",
+      targetIstat: config.map.features[target].istat,
+    });
     setRevealIndex(target);
     window.clearTimeout(revealTimer.current);
     revealTimer.current = window.setTimeout(() => setRevealIndex(null), 1100);
     dispatch({ type: "skip" });
-  }, [target]);
+  }, [target, config.map.features]);
 
   const handlePick = useCallback(
-    (index: number) => dispatch({ type: "guess", index }),
-    [],
+    (index: number) => {
+      if (target !== null) {
+        logRef.current.push({
+          tMs: Math.round(performance.now() - startRef.current),
+          type: "guess",
+          targetIstat: config.map.features[target].istat,
+          guessIstat: config.map.features[index].istat,
+          correct: index === target,
+        });
+      }
+      dispatch({ type: "guess", index });
+    },
+    [target, config.map.features],
   );
 
   const resolved = state.found + state.missed;
@@ -135,7 +197,12 @@ export function GameScreen({ config, onExit }: GameScreenProps) {
       </div>
 
       {!playing && (
-        <ResultCard state={state} onRestart={onExit} onExit={onExit} />
+        <ResultCard
+          state={state}
+          submission={submission}
+          onRestart={onExit}
+          onExit={onExit}
+        />
       )}
     </div>
   );

@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import type { GameMode } from "../game/engine";
+import { TIMER_DURATIONS } from "../leaderboard/constants";
 import { getProvince, PROVINCES } from "../maps/registry";
 import type { OverviewCollection } from "../maps/types";
 import { AuthMenu } from "./AuthMenu";
+import { LeaderboardPanel } from "./LeaderboardPanel";
 import { ProvincePicker } from "./ProvincePicker";
 import { ProvinceSearch } from "./ProvinceSearch";
 
@@ -10,11 +12,10 @@ interface HomeScreenProps {
   onStart: (provinceId: string, mode: GameMode) => void;
 }
 
-const TIMER_OPTIONS = [
-  { label: "1 min", seconds: 60 },
-  { label: "5 min", seconds: 300 },
-  { label: "10 min", seconds: 600 },
-];
+const TIMER_OPTIONS = TIMER_DURATIONS.map((seconds) => ({
+  label: `${seconds / 60} min`,
+  seconds,
+}));
 
 const DEFAULT_ID = getProvince("cn") ? "cn" : (PROVINCES[0]?.id ?? "");
 
@@ -43,94 +44,103 @@ export function HomeScreen({ onStart }: HomeScreenProps) {
   return (
     <div className="home">
       <AuthMenu />
-      <div className="home__inner">
-        <header className="home__head">
-          <p className="home__eyebrow">Cartina Muta</p>
-          <h1 className="home__title">
-            {selected
-              ? `Provincia di ${selected.name}`
-              : "Scegli una provincia"}
-          </h1>
-          <p className="home__sub">
-            {selected
-              ? `${selected.count} comuni da riconoscere · ${selected.region}`
-              : `${PROVINCES.length} province italiane`}
-          </p>
-        </header>
-
-        <div className="picker-controls">
-          <ProvinceSearch onSelect={setSelectedId} />
-          <button
-            type="button"
-            className="btn btn--ghost picker-controls__random"
-            onClick={() => setSelectedId((id) => randomId(id))}
-          >
-            🎲 Provincia a caso
-          </button>
-        </div>
-
-        <div className="picker-wrap">
-          {overview ? (
-            <ProvincePicker
-              overview={overview}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
-            />
-          ) : (
-            <div className="picker picker--loading" aria-hidden>
-              <div className="spinner" />
-            </div>
-          )}
-        </div>
-
-        <div className="modes">
-          <section className="mode-card">
-            <h2 className="mode-card__title">A tempo</h2>
-            <p className="mode-card__desc">
-              Quanti comuni riesci a trovare prima dello scadere?
+      <div className="home__layout">
+        <div className="home__inner">
+          <header className="home__head">
+            <p className="home__eyebrow">Cartina Muta</p>
+            <h1 className="home__title">
+              {selected
+                ? `Provincia di ${selected.name}`
+                : "Scegli una provincia"}
+            </h1>
+            <p className="home__sub">
+              {selected
+                ? `${selected.count} comuni da riconoscere · ${selected.region}`
+                : `${PROVINCES.length} province italiane`}
             </p>
-            <div className="mode-card__actions">
-              {TIMER_OPTIONS.map((opt) => (
+          </header>
+
+          <div className="picker-controls">
+            <ProvinceSearch onSelect={setSelectedId} />
+            <button
+              type="button"
+              className="btn btn--ghost picker-controls__random"
+              onClick={() => setSelectedId((id) => randomId(id))}
+            >
+              🎲 Provincia a caso
+            </button>
+          </div>
+
+          <div className="picker-wrap">
+            {overview ? (
+              <ProvincePicker
+                overview={overview}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+              />
+            ) : (
+              <div className="picker picker--loading" aria-hidden>
+                <div className="spinner" />
+              </div>
+            )}
+          </div>
+
+          <div className="modes">
+            <section className="mode-card">
+              <h2 className="mode-card__title">A tempo</h2>
+              <p className="mode-card__desc">
+                Quanti comuni riesci a trovare prima dello scadere?
+              </p>
+              <div className="mode-card__actions">
+                {TIMER_OPTIONS.map((opt) => (
+                  <button
+                    type="button"
+                    key={opt.seconds}
+                    className="btn btn--primary"
+                    disabled={!selected}
+                    onClick={() =>
+                      onStart(selectedId, {
+                        kind: "timer",
+                        durationSeconds: opt.seconds,
+                      })
+                    }
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="mode-card">
+              <h2 className="mode-card__title">Completa tutti</h2>
+              <p className="mode-card__desc">
+                Trova tutti i comuni. Nessun limite di tempo — conta la
+                precisione.
+              </p>
+              <div className="mode-card__actions">
                 <button
                   type="button"
-                  key={opt.seconds}
                   className="btn btn--primary"
                   disabled={!selected}
-                  onClick={() =>
-                    onStart(selectedId, {
-                      kind: "timer",
-                      durationSeconds: opt.seconds,
-                    })
-                  }
+                  onClick={() => onStart(selectedId, { kind: "complete" })}
                 >
-                  {opt.label}
+                  Inizia
                 </button>
-              ))}
-            </div>
-          </section>
+              </div>
+            </section>
+          </div>
 
-          <section className="mode-card">
-            <h2 className="mode-card__title">Completa tutti</h2>
-            <p className="mode-card__desc">
-              Trova tutti i comuni. Nessun limite di tempo — conta la
-              precisione.
-            </p>
-            <div className="mode-card__actions">
-              <button
-                type="button"
-                className="btn btn--primary"
-                disabled={!selected}
-                onClick={() => onStart(selectedId, { kind: "complete" })}
-              >
-                Inizia
-              </button>
-            </div>
-          </section>
+          <footer className="home__foot">
+            Un gioco di geografia · dati ISTAT / openpolis
+          </footer>
         </div>
 
-        <footer className="home__foot">
-          Un gioco di geografia · dati ISTAT / openpolis
-        </footer>
+        {selected && (
+          <LeaderboardPanel
+            provinceId={selectedId}
+            provinceName={selected.name}
+          />
+        )}
       </div>
     </div>
   );
