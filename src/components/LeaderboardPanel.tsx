@@ -10,6 +10,7 @@ interface LeaderboardPanelProps {
 }
 
 const MODE_TABS: { mode: GameMode; label: string }[] = [
+  { mode: { kind: "energy" }, label: "Energia" },
   { mode: { kind: "complete" }, label: "Completa" },
   ...TIMER_DURATIONS.map((seconds) => ({
     mode: { kind: "timer" as const, durationSeconds: seconds },
@@ -35,6 +36,7 @@ export function LeaderboardPanel({
 }: LeaderboardPanelProps) {
   const [modeIndex, setModeIndex] = useState(0);
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  const isEnergy = MODE_TABS[modeIndex].mode.kind === "energy";
 
   useEffect(() => {
     let cancelled = false;
@@ -87,11 +89,19 @@ export function LeaderboardPanel({
             <li key={entry.userId} className="leaderboard__row">
               <span className="leaderboard__rank">{entry.rank}</span>
               <span className="leaderboard__name">{entry.name}</span>
-              <span className="leaderboard__found">
-                {entry.found}/{entry.totalRegions}
-              </span>
+              {isEnergy ? (
+                <span className="leaderboard__found">
+                  {entry.score ?? 0} pt
+                </span>
+              ) : (
+                <span className="leaderboard__found">
+                  {entry.found}/{entry.totalRegions}
+                </span>
+              )}
               <span className="leaderboard__time">
-                {formatClock(entry.elapsedMs)}
+                {isEnergy
+                  ? `${entry.found}/${entry.totalRegions}`
+                  : formatClock(entry.elapsedMs)}
               </span>
             </li>
           ))}

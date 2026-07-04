@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { compassArrow } from "../game/distance";
 import {
   createGame,
   currentTarget,
@@ -33,6 +34,7 @@ function formatClock(totalSeconds: number): string {
 }
 
 export function GameScreen({ config, onExit }: GameScreenProps) {
+  const isEnergy = config.mode.kind === "energy";
   const [state, dispatch] = useReducer(reducer, config, (c) => createGame(c));
   const [flashIndex, setFlashIndex] = useState<number | null>(null);
   const [wrongIndex, setWrongIndex] = useState<number | null>(null);
@@ -41,10 +43,23 @@ export function GameScreen({ config, onExit }: GameScreenProps) {
   const [reaction, setReaction] = useState<{ id: number; text: string } | null>(
     null,
   );
+  const [energyToast, setEnergyToast] = useState<{
+    id: number;
+    kind: "hit" | "miss";
+  } | null>(null);
   const flashTimer = useRef<number | undefined>(undefined);
   const wrongTimer = useRef<number | undefined>(undefined);
   const revealTimer = useRef<number | undefined>(undefined);
   const reactionTimer = useRef<number | undefined>(undefined);
+  const energyToastTimer = useRef<number | undefined>(undefined);
+  // The target a pending energy-mode guess was against — captured so the
+  // "3rd miss" auto-reveal (which advances the round before this effect
+  // sees it) still knows which region to flash, mirroring the skip flow.
+  const pendingEnergyTargetRef = useRef<number | null>(null);
+  // Precise time the current round's target was presented — energy mode's
+  // speed bonus needs this, but the reducer only tracks rounded whole
+  // seconds via "tick".
+  const roundStartRef = useRef(performance.now());
 
   // Precise action log for leaderboard replay — kept out of the pure
   // reducer, which only tracks the rounded whole-second `elapsed`.
@@ -65,6 +80,11 @@ export function GameScreen({ config, onExit }: GameScreenProps) {
     }
   }, [state.phase, finalElapsedMs]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `target` is a re-run trigger (new round presented), not a value the effect reads.
+  useEffect(() => {
+    roundStartRef.current = performance.now();
+  }, [target]);
+
   const submission = useMemo<ScoreSubmissionPayload | null>(() => {
     if (finalElapsedMs === null) return null;
     return {
@@ -74,28 +94,33 @@ export function GameScreen({ config, onExit }: GameScreenProps) {
       missed: state.missed,
       mistakes: state.mistakes,
       elapsedMs: finalElapsedMs,
+      score: isEnergy ? state.score : undefined,
       actionLog: logRef.current,
     };
   }, [
     finalElapsedMs,
     config.map.id,
     config.mode,
+    isEnergy,
     state.found,
     state.missed,
     state.mistakes,
+    state.score,
   ]);
 
-  // Tick once per second while playing (drives the timer and elapsed clock).
+  // Tick once per second while playing (drives the timer/energy drain and elapsed clock).
   useEffect(() => {
     if (!playing) return;
     const id = window.setInterval(() => dispatch({ type: "tick" }), 1000);
     return () => window.clearInterval(id);
   }, [playing]);
 
-  // On a wrong guess: flash the region red briefly and surface its name a
-  // little longer so the player can read what they actually clicked.
+  // On a wrong region-index guess (timer/complete modes): flash the region
+  // red briefly and surface its name a little longer so the player can read
+  // what they actually clicked.
   useEffect(() => {
     if (!state.feedback || state.feedback.correct) return;
+    if (state.feedback.index === null) return;
     const { index, id } = state.feedback;
     setFlashIndex(index);
     setWrongIndex(index);
@@ -106,10 +131,24 @@ export function GameScreen({ config, onExit }: GameScreenProps) {
     wrongTimer.current = window.setTimeout(() => setWrongIndex(null), 1300);
   }, [state.feedback]);
 
+  // Energy mode: after the round auto-resolves (3rd miss), briefly pulse the
+  // region that was actually the target — the reducer has already advanced
+  // to the next one, so this relies on the target captured before dispatch.
+  useEffect(() => {
+    if (!isEnergy || !state.feedback || state.feedback.correct) return;
+    const missedTarget = pendingEnergyTargetRef.current;
+    if (missedTarget === null || state.status[missedTarget] !== "missed")
+      return;
+    setRevealIndex(missedTarget);
+    window.clearTimeout(revealTimer.current);
+    revealTimer.current = window.setTimeout(() => setRevealIndex(null), 1100);
+  }, [isEnergy, state.feedback, state.status]);
+
   // On every guess: surface a funny local reaction (curse/praise), with
   // dialect flavour when the province has one and streak-aware milestones.
+  // Energy mode shows its own structured score/distance toast instead.
   useEffect(() => {
-    if (!state.feedback) return;
+    if (isEnergy || !state.feedback) return;
     const text = pickReaction(
       config.map.id,
       state.feedback.correct,
@@ -119,7 +158,27 @@ export function GameScreen({ config, onExit }: GameScreenProps) {
     setReaction({ id: state.feedback.id, text });
     window.clearTimeout(reactionTimer.current);
     reactionTimer.current = window.setTimeout(() => setReaction(null), 2200);
-  }, [state.feedback, state.correctStreak, state.wrongStreak, config.map.id]);
+  }, [
+    isEnergy,
+    state.feedback,
+    state.correctStreak,
+    state.wrongStreak,
+    config.map.id,
+  ]);
+
+  // Energy mode: itemized score toast on a hit, distance+bearing toast on a miss.
+  useEffect(() => {
+    if (!isEnergy || !state.feedback) return;
+    setEnergyToast({
+      id: state.feedback.id,
+      kind: state.feedback.correct ? "hit" : "miss",
+    });
+    window.clearTimeout(energyToastTimer.current);
+    energyToastTimer.current = window.setTimeout(
+      () => setEnergyToast(null),
+      2200,
+    );
+  }, [isEnergy, state.feedback]);
 
   useEffect(
     () => () => {
@@ -127,12 +186,17 @@ export function GameScreen({ config, onExit }: GameScreenProps) {
       window.clearTimeout(wrongTimer.current);
       window.clearTimeout(revealTimer.current);
       window.clearTimeout(reactionTimer.current);
+      window.clearTimeout(energyToastTimer.current);
     },
     [],
   );
 
   const handleSkip = useCallback(() => {
     if (target === null) return;
+    // Keep in sync with the energy-mode auto-reveal effect below, which
+    // otherwise re-fires on this dispatch's status change and can
+    // overwrite this reveal with a stale target from an earlier miss.
+    pendingEnergyTargetRef.current = target;
     logRef.current.push({
       tMs: Math.round(performance.now() - startRef.current),
       type: "skip",
@@ -160,7 +224,144 @@ export function GameScreen({ config, onExit }: GameScreenProps) {
     [target, config.map.features],
   );
 
+  const handleGuessPoint = useCallback(
+    (point: [number, number]) => {
+      if (target === null) return;
+      pendingEnergyTargetRef.current = target;
+      logRef.current.push({
+        tMs: Math.round(performance.now() - startRef.current),
+        type: "guessPoint",
+        targetIstat: config.map.features[target].istat,
+        point,
+        // Correctness isn't known client-side (point-in-polygon lives in the
+        // reducer) — filled in from the next feedback once dispatched below.
+        correct: false,
+      });
+      dispatch({
+        type: "guessPoint",
+        point,
+        roundElapsedMs: Math.round(performance.now() - roundStartRef.current),
+      });
+    },
+    [target, config.map.features],
+  );
+
+  // The actionLog entry pushed in handleGuessPoint can't know "correct" yet
+  // (the reducer decides it) — patch the last entry once feedback lands.
+  useEffect(() => {
+    if (!isEnergy || !state.feedback) return;
+    const last = logRef.current[logRef.current.length - 1];
+    if (last?.type === "guessPoint") last.correct = state.feedback.correct;
+  }, [isEnergy, state.feedback]);
+
   const resolved = state.found + state.missed;
+
+  if (isEnergy) {
+    return (
+      <div className="game game--energy">
+        <div className="map-wrap map-wrap--full">
+          <MapCanvas
+            map={config.map}
+            status={state.status}
+            flashIndex={flashIndex}
+            wrongIndex={wrongIndex}
+            wrongKey={wrongKey}
+            revealIndex={revealIndex}
+            onGuessPoint={handleGuessPoint}
+            panZoom
+            interactive={playing}
+          />
+          {energyToast && (
+            <div
+              key={energyToast.id}
+              className={`energy-toast ${energyToast.kind === "hit" ? "energy-toast--hit" : "energy-toast--miss"}`}
+            >
+              {energyToast.kind === "hit" && state.scoreBreakdown ? (
+                <>
+                  <span className="energy-toast__total">
+                    +{state.scoreBreakdown.total}
+                  </span>
+                  {(state.scoreBreakdown.streakMultiplier > 1 ||
+                    state.scoreBreakdown.firstTryBonus > 0 ||
+                    state.scoreBreakdown.speedBonus > 0) && (
+                    <span className="energy-toast__detail">
+                      {[
+                        state.scoreBreakdown.streakMultiplier > 1
+                          ? `× ${state.scoreBreakdown.streakMultiplier} streak`
+                          : null,
+                        state.scoreBreakdown.firstTryBonus > 0
+                          ? "primo colpo"
+                          : state.scoreBreakdown.speedBonus > 0
+                            ? "fulmineo"
+                            : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  )}
+                </>
+              ) : (
+                state.feedback?.distanceKm !== undefined &&
+                state.feedback.bearingDeg !== undefined && (
+                  <span className="energy-toast__miss">
+                    {Math.round(state.feedback.distanceKm)} km{" "}
+                    {compassArrow(state.feedback.bearingDeg)}
+                  </span>
+                )
+              )}
+            </div>
+          )}
+        </div>
+
+        <header className="hud hud--overlay">
+          <div className="hud__top">
+            <button type="button" className="btn btn--ghost" onClick={onExit}>
+              ← Menu
+            </button>
+            <div className="hud__stats">
+              <div className="stat">
+                <span className="stat__value">{state.score}</span>
+                <span className="stat__label">punti</span>
+              </div>
+            </div>
+          </div>
+          <div
+            className={`energy-bar ${state.energy <= 25 ? "energy-bar--low" : ""}`}
+            aria-hidden
+          >
+            <div
+              className="energy-bar__fill"
+              style={{ width: `${state.energy}%` }}
+            />
+          </div>
+          {playing && target !== null && (
+            <div className="prompt prompt--overlay">
+              <span className="prompt__cue">Trova</span>
+              <h2 className="prompt__name">
+                {config.map.features[target].name}
+              </h2>
+              <button
+                type="button"
+                className="btn btn--skip"
+                onClick={handleSkip}
+              >
+                Salta / mostra
+              </button>
+            </div>
+          )}
+        </header>
+
+        {!playing && (
+          <ResultCard
+            state={state}
+            submission={submission}
+            onRestart={onExit}
+            onExit={onExit}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="game">

@@ -175,12 +175,17 @@ button {
 }
 
 .modes {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.modes__classic {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1.25rem;
 }
 @media (max-width: 620px) {
-  .modes {
+  .modes__classic {
     grid-template-columns: 1fr;
   }
 }
@@ -195,6 +200,22 @@ button {
   padding: 1.5rem 1.35rem;
   text-align: left;
   box-shadow: var(--shadow);
+}
+.mode-card--featured {
+  background: linear-gradient(
+    135deg,
+    rgba(191, 90, 60, 0.12),
+    rgba(201, 154, 75, 0.14)
+  );
+  border-color: var(--gold);
+}
+.mode-card__eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--terracotta);
+  margin: 0 0 0.35rem;
 }
 .mode-card__title {
   font-family: var(--font-display);
@@ -445,6 +466,113 @@ button {
   height: 100%;
   background: linear-gradient(90deg, var(--olive), var(--teal));
   transition: width 0.3s ease;
+}
+
+/* ---------- Energy-run mode ---------- */
+.game--energy {
+  position: relative;
+  height: 100%;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+.map-wrap--full {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.map-wrap--full .map-canvas {
+  touch-action: none;
+}
+.hud--overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0.6rem;
+  padding: 0.9rem clamp(0.75rem, 3vw, 2rem) 0.75rem;
+  background: linear-gradient(
+    180deg,
+    rgba(242, 233, 214, 0.94) 65%,
+    rgba(242, 233, 214, 0)
+  );
+  pointer-events: none;
+}
+.hud--overlay > * {
+  pointer-events: auto;
+}
+.hud__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.energy-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--paper-2);
+  border: 1px solid var(--paper-edge);
+  overflow: hidden;
+}
+.energy-bar__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--olive), var(--teal));
+  transition:
+    width 0.25s ease,
+    background 0.25s ease;
+}
+.energy-bar--low .energy-bar__fill {
+  background: linear-gradient(90deg, var(--terracotta), var(--gold));
+}
+.prompt--overlay {
+  padding: 0;
+}
+.energy-toast {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  text-align: center;
+  padding: 0.7rem 1.4rem;
+  border-radius: 16px;
+  background: var(--paper);
+  border: 1px solid var(--paper-edge);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  animation: reaction-toast-fade 2.2s ease forwards;
+}
+.energy-toast--hit {
+  color: var(--olive-deep);
+}
+.energy-toast--miss {
+  color: var(--terracotta);
+}
+.energy-toast__total {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 2.1rem;
+  line-height: 1.1;
+}
+.energy-toast__detail {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-top: 0.15rem;
+}
+.energy-toast__miss {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.6rem;
 }
 
 /* ---------- Result overlay ---------- */

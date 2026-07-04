@@ -18,31 +18,45 @@ function formatClock(totalSeconds: number): string {
 
 export function ResultCard({ state, submission, onExit }: ResultCardProps) {
   const total = state.map.features.length;
+  const isEnergy = state.mode.kind === "energy";
   const perfect = state.found === total && state.mistakes === 0;
   const timedOut =
     state.mode.kind === "timer" && state.timeLeft <= 0 && state.found < total;
 
-  const title = perfect
-    ? "Perfetto!"
-    : timedOut
-      ? "Tempo scaduto"
-      : "Completato";
+  const title = isEnergy
+    ? perfect
+      ? "Provincia conquistata!"
+      : "Energia esaurita"
+    : perfect
+      ? "Perfetto!"
+      : timedOut
+        ? "Tempo scaduto"
+        : "Completato";
 
   return (
     <div className="overlay">
       <div className="result-card">
         <h2 className="result-card__title">{title}</h2>
         <div className="result-card__grid">
+          {isEnergy ? (
+            <div className="result-stat">
+              <span className="result-stat__value">{state.score}</span>
+              <span className="result-stat__label">punti</span>
+            </div>
+          ) : (
+            <div className="result-stat">
+              <span className="result-stat__value">{state.mistakes}</span>
+              <span className="result-stat__label">errori</span>
+            </div>
+          )}
           <div className="result-stat">
             <span className="result-stat__value">
               {state.found}
               <span className="result-stat__of">/{total}</span>
             </span>
-            <span className="result-stat__label">indovinati</span>
-          </div>
-          <div className="result-stat">
-            <span className="result-stat__value">{state.mistakes}</span>
-            <span className="result-stat__label">errori</span>
+            <span className="result-stat__label">
+              {isEnergy ? "profondità" : "indovinati"}
+            </span>
           </div>
           <div className="result-stat">
             <span className="result-stat__value">

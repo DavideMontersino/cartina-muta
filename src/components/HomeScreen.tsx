@@ -86,48 +86,70 @@ export function HomeScreen({ onStart }: HomeScreenProps) {
           </div>
 
           <div className="modes">
-            <section className="mode-card">
-              <h2 className="mode-card__title">A tempo</h2>
+            <section className="mode-card mode-card--featured">
+              <p className="mode-card__eyebrow">Nuovo</p>
+              <h2 className="mode-card__title">Corsa a energia</h2>
               <p className="mode-card__desc">
-                Quanti comuni riesci a trovare prima dello scadere?
-              </p>
-              <div className="mode-card__actions">
-                {TIMER_OPTIONS.map((opt) => (
-                  <button
-                    type="button"
-                    key={opt.seconds}
-                    className="btn btn--primary"
-                    disabled={!selected}
-                    onClick={() =>
-                      onStart(selectedId, {
-                        kind: "timer",
-                        durationSeconds: opt.seconds,
-                      })
-                    }
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section className="mode-card">
-              <h2 className="mode-card__title">Completa tutti</h2>
-              <p className="mode-card__desc">
-                Trova tutti i comuni. Nessun limite di tempo — conta la
-                precisione.
+                Un comune via l'altro, facile-poi-difficile, finché la tua
+                energia regge. Risposte giuste la ricaricano, errori e salti la
+                consumano — quanto a fondo riesci ad arrivare?
               </p>
               <div className="mode-card__actions">
                 <button
                   type="button"
                   className="btn btn--primary"
                   disabled={!selected}
-                  onClick={() => onStart(selectedId, { kind: "complete" })}
+                  onClick={() => onStart(selectedId, { kind: "energy" })}
                 >
                   Inizia
                 </button>
               </div>
             </section>
+
+            <div className="modes__classic">
+              <section className="mode-card">
+                <h2 className="mode-card__title">A tempo</h2>
+                <p className="mode-card__desc">
+                  Quanti comuni riesci a trovare prima dello scadere?
+                </p>
+                <div className="mode-card__actions">
+                  {TIMER_OPTIONS.map((opt) => (
+                    <button
+                      type="button"
+                      key={opt.seconds}
+                      className="btn btn--primary"
+                      disabled={!selected}
+                      onClick={() =>
+                        onStart(selectedId, {
+                          kind: "timer",
+                          durationSeconds: opt.seconds,
+                        })
+                      }
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section className="mode-card">
+                <h2 className="mode-card__title">Completa tutti</h2>
+                <p className="mode-card__desc">
+                  Trova tutti i comuni. Nessun limite di tempo — conta la
+                  precisione.
+                </p>
+                <div className="mode-card__actions">
+                  <button
+                    type="button"
+                    className="btn btn--primary"
+                    disabled={!selected}
+                    onClick={() => onStart(selectedId, { kind: "complete" })}
+                  >
+                    Inizia
+                  </button>
+                </div>
+              </section>
+            </div>
           </div>
 
           <footer className="home__foot">
