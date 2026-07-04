@@ -1,3 +1,4 @@
+import type { GameMode } from "../game/engine";
 import { rankEntries } from "./rank";
 import type { LeaderboardEntry } from "./types";
 
@@ -23,7 +24,7 @@ interface BoardRow {
 export async function fetchBoard(
   db: D1Database,
   provinceId: string,
-  modeKind: "timer" | "complete",
+  modeKind: GameMode["kind"],
   modeDurationSeconds: number | null,
 ): Promise<LeaderboardEntry[]> {
   const result = await db

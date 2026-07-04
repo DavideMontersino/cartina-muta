@@ -1,8 +1,15 @@
 import type { MapDefinition } from "../maps/types";
+import {
+  bearingDegrees,
+  haversineKm,
+  type LonLat,
+  pointInGeometry,
+} from "./distance";
 
 export type GameMode =
   | { kind: "timer"; durationSeconds: number }
-  | { kind: "complete" };
+  | { kind: "complete" }
+  | { kind: "energy" };
 
 export type RegionStatus = "pending" | "found" | "missed";
 
@@ -14,14 +21,28 @@ export interface GameConfig {
 export interface Feedback {
   /** Increments on every guess so the UI can react to repeat guesses. */
   id: number;
-  index: number;
+  /** The clicked region, or null for energy mode's free-form point guesses. */
+  index: number | null;
   correct: boolean;
+  /** Distance/bearing to the target — energy mode only, set on a miss. */
+  distanceKm?: number;
+  bearingDeg?: number;
+}
+
+/** Itemized score components for the last correct energy-mode guess. */
+export interface ScoreBreakdown {
+  base: number;
+  distanceFactor: number;
+  streakMultiplier: number;
+  speedBonus: number;
+  firstTryBonus: number;
+  total: number;
 }
 
 export interface GameState {
   map: MapDefinition;
   mode: GameMode;
-  /** Randomised presentation order; values are indices into map.features. */
+  /** Randomised (or weighted-sampled, for energy mode) presentation order; values are indices into map.features. */
   order: number[];
   /** Pointer into `order` for the current target. */
   cursor: number;
@@ -39,13 +60,47 @@ export interface GameState {
   elapsed: number;
   phase: "playing" | "finished";
   feedback: Feedback | null;
+  /** Energy 0-100 (energy mode); Infinity (never depletes) in other modes. */
+  energy: number;
+  /** Itemized score (energy mode); unused (0) in other modes. */
+  score: number;
+  /** Guesses made against the current target (energy mode only; 0 in other modes). */
+  attempts: number;
+  /** Breakdown of the last scored guess (energy mode only). */
+  scoreBreakdown: ScoreBreakdown | null;
 }
 
 export type GameAction =
   | { type: "guess"; index: number }
+  | { type: "guessPoint"; point: LonLat; roundElapsedMs: number }
   | { type: "skip" }
   | { type: "tick" }
   | { type: "finish" };
+
+/** Tunable constants for the energy-run mode. Starting numbers per the design doc — playtest, don't defend. */
+export const ENERGY_CONFIG = {
+  start: 100,
+  max: 100,
+  drainPerSecond: 1.5,
+  /** Drain rate grows this fraction per minute survived. */
+  drainGrowthPerMinute: 0.1,
+  refill: { bullseye: 20, near: 10, far: 5 },
+  wrongAttemptCost: 8,
+  skipCost: 15,
+  maxAttempts: 3,
+  /** Base score per attempt number (1st/2nd/3rd try). */
+  attemptBase: [100, 60, 30],
+  /** Distance (km) from the target centroid beyond which distanceFactor bottoms out. */
+  distanceFactorReferenceKm: 20,
+  distanceFactorFloor: 0.5,
+  streak: { doubleAt: 3, tripleAt: 6 },
+  speedBonusThresholdMs: 3000,
+  speedBonus: 50,
+  firstTryBullseyeBonus: 50,
+} as const;
+
+const clamp = (n: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, n));
 
 /** Fisher–Yates shuffle. `rng` is injectable so tests are deterministic. */
 export function shuffle(n: number, rng: () => number = Math.random): number[] {
@@ -57,15 +112,63 @@ export function shuffle(n: number, rng: () => number = Math.random): number[] {
   return arr;
 }
 
+export interface WeightedSamplingOptions {
+  /** Population-weight exponent at the start of the run (depth 0). */
+  alphaStart?: number;
+  /** Per-step exponent decay — weighting flattens toward uniform as the run goes deeper. */
+  alphaDecay?: number;
+}
+
+/**
+ * Weighted sample-without-replacement order: at each step, the next index is
+ * drawn from the remaining pool with probability proportional to
+ * `population^alpha(depth)`, where alpha decays toward 0 (uniform) as depth
+ * grows — early picks strongly favour big/famous comuni, deep picks approach
+ * uniform. `rng` is injectable so tests are deterministic.
+ */
+export function weightedShuffle(
+  populations: number[],
+  rng: () => number = Math.random,
+  { alphaStart = 1, alphaDecay = 0.02 }: WeightedSamplingOptions = {},
+): number[] {
+  const remaining = populations.map((p, i) => ({ i, p: Math.max(p, 1) }));
+  const order: number[] = [];
+  let depth = 0;
+  while (remaining.length > 0) {
+    const alpha = Math.max(0, alphaStart - alphaDecay * depth);
+    const weights = remaining.map((r) => r.p ** alpha);
+    const total = weights.reduce((a, b) => a + b, 0);
+    let r = rng() * total;
+    let pick = remaining.length - 1;
+    for (let k = 0; k < weights.length; k++) {
+      r -= weights[k];
+      if (r <= 0) {
+        pick = k;
+        break;
+      }
+    }
+    order.push(remaining[pick].i);
+    remaining.splice(pick, 1);
+    depth++;
+  }
+  return order;
+}
+
 export function createGame(
   config: GameConfig,
   rng: () => number = Math.random,
 ): GameState {
   const n = config.map.features.length;
+  const isEnergy = config.mode.kind === "energy";
   return {
     map: config.map,
     mode: config.mode,
-    order: shuffle(n, rng),
+    order: isEnergy
+      ? weightedShuffle(
+          config.map.features.map((f) => f.population),
+          rng,
+        )
+      : shuffle(n, rng),
     cursor: 0,
     status: Array<RegionStatus>(n).fill("pending"),
     found: 0,
@@ -80,6 +183,10 @@ export function createGame(
     elapsed: 0,
     phase: "playing",
     feedback: null,
+    energy: isEnergy ? ENERGY_CONFIG.start : Number.POSITIVE_INFINITY,
+    score: 0,
+    attempts: 0,
+    scoreBreakdown: null,
   };
 }
 
@@ -134,11 +241,144 @@ export function reducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case "guessPoint": {
+      if (state.mode.kind !== "energy") return state;
+      const target = currentTarget(state);
+      if (target === null) return state;
+      const feature = state.map.features[target];
+      const nextFeedbackId = (state.feedback?.id ?? 0) + 1;
+      const correct = pointInGeometry(action.point, feature.geometry);
+
+      if (correct) {
+        const attemptNumber = state.attempts + 1;
+        const tier = clamp(attemptNumber, 1, ENERGY_CONFIG.attemptBase.length);
+        const base = ENERGY_CONFIG.attemptBase[tier - 1];
+        const distanceKm = haversineKm(action.point, feature.centroid);
+        const distanceFactor = clamp(
+          1 - distanceKm / ENERGY_CONFIG.distanceFactorReferenceKm,
+          ENERGY_CONFIG.distanceFactorFloor,
+          1,
+        );
+        const correctStreak = state.correctStreak + 1;
+        const streakMultiplier =
+          correctStreak >= ENERGY_CONFIG.streak.tripleAt
+            ? 3
+            : correctStreak >= ENERGY_CONFIG.streak.doubleAt
+              ? 2
+              : 1;
+        const speedBonus =
+          action.roundElapsedMs < ENERGY_CONFIG.speedBonusThresholdMs
+            ? ENERGY_CONFIG.speedBonus
+            : 0;
+        const firstTryBonus =
+          attemptNumber === 1 ? ENERGY_CONFIG.firstTryBullseyeBonus : 0;
+        const total =
+          Math.round(base * distanceFactor * streakMultiplier) +
+          speedBonus +
+          firstTryBonus;
+        const refill =
+          attemptNumber === 1
+            ? ENERGY_CONFIG.refill.bullseye
+            : attemptNumber === 2
+              ? ENERGY_CONFIG.refill.near
+              : ENERGY_CONFIG.refill.far;
+
+        const status = state.status.slice();
+        status[target] = "found";
+        return advance({
+          ...state,
+          status,
+          found: state.found + 1,
+          score: state.score + total,
+          energy: clamp(state.energy + refill, 0, ENERGY_CONFIG.max),
+          correctStreak,
+          wrongStreak: 0,
+          attempts: 0,
+          scoreBreakdown: {
+            base,
+            distanceFactor,
+            streakMultiplier,
+            speedBonus,
+            firstTryBonus,
+            total,
+          },
+          feedback: { id: nextFeedbackId, index: null, correct: true },
+        });
+      }
+
+      const distanceKm = haversineKm(action.point, feature.centroid);
+      const bearingDeg = bearingDegrees(action.point, feature.centroid);
+      const energy = clamp(
+        state.energy - ENERGY_CONFIG.wrongAttemptCost,
+        0,
+        ENERGY_CONFIG.max,
+      );
+      const feedback: Feedback = {
+        id: nextFeedbackId,
+        index: null,
+        correct: false,
+        distanceKm,
+        bearingDeg,
+      };
+
+      if (energy <= 0) {
+        return {
+          ...state,
+          energy,
+          wrongStreak: state.wrongStreak + 1,
+          correctStreak: 0,
+          feedback,
+          phase: "finished",
+        };
+      }
+
+      const attempts = state.attempts + 1;
+      if (attempts >= ENERGY_CONFIG.maxAttempts) {
+        const status = state.status.slice();
+        status[target] = "missed";
+        return advance({
+          ...state,
+          status,
+          missed: state.missed + 1,
+          energy,
+          attempts: 0,
+          wrongStreak: state.wrongStreak + 1,
+          correctStreak: 0,
+          feedback,
+        });
+      }
+
+      return {
+        ...state,
+        energy,
+        attempts,
+        wrongStreak: state.wrongStreak + 1,
+        correctStreak: 0,
+        feedback,
+      };
+    }
+
     case "skip": {
       const target = currentTarget(state);
       if (target === null) return state;
       const status = state.status.slice();
       status[target] = "missed";
+      if (state.mode.kind === "energy") {
+        const energy = clamp(
+          state.energy - ENERGY_CONFIG.skipCost,
+          0,
+          ENERGY_CONFIG.max,
+        );
+        const next = {
+          ...state,
+          status,
+          missed: state.missed + 1,
+          energy,
+          attempts: 0,
+        };
+        if (energy <= 0) return { ...next, phase: "finished" as const };
+        return advance(next);
+      }
       return advance({ ...state, status, missed: state.missed + 1 });
     }
 
@@ -150,6 +390,17 @@ export function reducer(state: GameState, action: GameAction): GameState {
           return { ...state, timeLeft: 0, elapsed, phase: "finished" };
         }
         return { ...state, timeLeft, elapsed };
+      }
+      if (state.mode.kind === "energy") {
+        const minutesElapsed = Math.floor(elapsed / 60);
+        const drainRate =
+          ENERGY_CONFIG.drainPerSecond *
+          (1 + ENERGY_CONFIG.drainGrowthPerMinute * minutesElapsed);
+        const energy = Math.max(0, state.energy - drainRate);
+        if (energy <= 0) {
+          return { ...state, energy: 0, elapsed, phase: "finished" };
+        }
+        return { ...state, energy, elapsed };
       }
       return { ...state, elapsed };
     }

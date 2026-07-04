@@ -3,12 +3,28 @@ import type { MapDefinition } from "../maps/types";
 import {
   createGame,
   currentTarget,
+  ENERGY_CONFIG,
   type GameConfig,
   reducer,
   shuffle,
+  weightedShuffle,
 } from "./engine";
 
-const fakeMap = (n: number): MapDefinition => ({
+/** A `size x size` square centred at `(lon, lat) x 10` degrees apart, so tests can pick points reliably inside/outside/far from each region. */
+const squareAt = (lon: number, lat: number, size = 4) => ({
+  type: "Polygon" as const,
+  coordinates: [
+    [
+      [lon - size / 2, lat - size / 2],
+      [lon - size / 2, lat + size / 2],
+      [lon + size / 2, lat + size / 2],
+      [lon + size / 2, lat - size / 2],
+      [lon - size / 2, lat - size / 2],
+    ],
+  ],
+});
+
+const fakeMap = (n: number, populations?: number[]): MapDefinition => ({
   id: "test",
   name: "Test",
   unit: { singular: "regione", plural: "regioni" },
@@ -16,6 +32,22 @@ const fakeMap = (n: number): MapDefinition => ({
     name: `R${i}`,
     istat: String(i),
     geometry: { type: "Polygon", coordinates: [] },
+    population: populations?.[i] ?? 1,
+    centroid: [i * 10, 0] as [number, number],
+  })),
+});
+
+/** Same as `fakeMap`, but with real (non-degenerate) square geometry so point-in-polygon checks work. */
+const fakeGeoMap = (n: number): MapDefinition => ({
+  id: "test",
+  name: "Test",
+  unit: { singular: "comune", plural: "comuni" },
+  features: Array.from({ length: n }, (_, i) => ({
+    name: `R${i}`,
+    istat: String(i),
+    geometry: squareAt(i * 10, 0),
+    population: 1,
+    centroid: [i * 10, 0] as [number, number],
   })),
 });
 
@@ -162,5 +194,197 @@ describe("reducer — timer mode", () => {
     s = reducer(s, { type: "tick" });
     s = reducer(s, { type: "tick" });
     expect(s.elapsed).toBe(2);
+  });
+});
+
+describe("weightedShuffle", () => {
+  it("returns a permutation of 0..n-1 regardless of population skew", () => {
+    const out = weightedShuffle([1, 4, 100, 2, 1000], () => 0.37);
+    expect([...out].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("picks proportionally to population^alpha at each step", () => {
+    // With a constant mid-range rng, the heavier of the remaining items wins
+    // each draw (worked by hand): depth 0 (alpha=1, weights [1,4,100],
+    // total=105) lands in the population-100 bucket; depth 1 (alpha=0.98,
+    // weights [1, 4^0.98], total≈4.86) lands in the population-4 bucket.
+    const out = weightedShuffle([1, 4, 100], () => 0.5);
+    expect(out).toEqual([2, 1, 0]);
+  });
+
+  it("is uniform (order-independent of population) when all populations are equal", () => {
+    const out = weightedShuffle([1, 1, 1, 1], () => 0);
+    expect(out).toEqual([0, 1, 2, 3]);
+  });
+});
+
+// Deterministic RNG for weightedShuffle so energy-mode order is the identity
+// permutation (see weightedShuffle's "uniform populations" case above).
+const noWeightRng = () => 0;
+
+const startEnergy = (n: number): GameConfig => ({
+  map: fakeGeoMap(n),
+  mode: { kind: "energy" },
+});
+
+describe("reducer — energy mode", () => {
+  it("starts at full energy with zero score", () => {
+    const s = createGame(startEnergy(3), noWeightRng);
+    expect(s.energy).toBe(ENERGY_CONFIG.start);
+    expect(s.score).toBe(0);
+    expect(s.attempts).toBe(0);
+  });
+
+  it("awards full first-try bullseye score and refill for a spot-on click", () => {
+    let s = createGame(startEnergy(3), noWeightRng);
+    const target = currentTarget(s) as number;
+    s = reducer(s, {
+      type: "guessPoint",
+      point: s.map.features[target].centroid,
+      roundElapsedMs: 500,
+    });
+
+    expect(s.status[target]).toBe("found");
+    expect(s.scoreBreakdown).toEqual({
+      base: ENERGY_CONFIG.attemptBase[0],
+      distanceFactor: 1,
+      streakMultiplier: 1,
+      speedBonus: ENERGY_CONFIG.speedBonus,
+      firstTryBonus: ENERGY_CONFIG.firstTryBullseyeBonus,
+      total:
+        ENERGY_CONFIG.attemptBase[0] +
+        ENERGY_CONFIG.speedBonus +
+        ENERGY_CONFIG.firstTryBullseyeBonus,
+    });
+    expect(s.score).toBe(s.scoreBreakdown?.total);
+    expect(s.energy).toBe(ENERGY_CONFIG.start); // already at max, refill clamps
+  });
+
+  it("does not award the speed bonus past the threshold", () => {
+    let s = createGame(startEnergy(3), noWeightRng);
+    const target = currentTarget(s) as number;
+    s = reducer(s, {
+      type: "guessPoint",
+      point: s.map.features[target].centroid,
+      roundElapsedMs: ENERGY_CONFIG.speedBonusThresholdMs,
+    });
+    expect(s.scoreBreakdown?.speedBonus).toBe(0);
+  });
+
+  it("charges energy and reports distance/bearing on a wrong click, without advancing", () => {
+    let s = createGame(startEnergy(3), noWeightRng);
+    const target = currentTarget(s) as number;
+    const [lon, lat] = s.map.features[target].centroid;
+
+    s = reducer(s, {
+      type: "guessPoint",
+      point: [lon + 5, lat],
+      roundElapsedMs: 1000,
+    });
+
+    expect(currentTarget(s)).toBe(target);
+    expect(s.attempts).toBe(1);
+    expect(s.energy).toBe(ENERGY_CONFIG.start - ENERGY_CONFIG.wrongAttemptCost);
+    expect(s.feedback?.correct).toBe(false);
+    expect(s.feedback?.distanceKm).toBeGreaterThan(0);
+    expect(s.feedback?.bearingDeg).toBeGreaterThanOrEqual(0);
+  });
+
+  it("reveals and advances after the 3rd miss, without a full skip penalty", () => {
+    let s = createGame(startEnergy(3), noWeightRng);
+    const target = currentTarget(s) as number;
+    const [lon, lat] = s.map.features[target].centroid;
+    const wrongGuess = () =>
+      (s = reducer(s, {
+        type: "guessPoint",
+        point: [lon + 5, lat],
+        roundElapsedMs: 1000,
+      }));
+
+    wrongGuess();
+    wrongGuess();
+    expect(currentTarget(s)).toBe(target);
+    wrongGuess();
+
+    expect(s.status[target]).toBe("missed");
+    expect(s.missed).toBe(1);
+    expect(s.attempts).toBe(0); // reset for the next target
+    expect(currentTarget(s)).not.toBe(target);
+    expect(s.energy).toBe(
+      ENERGY_CONFIG.start - 3 * ENERGY_CONFIG.wrongAttemptCost,
+    );
+  });
+
+  it("applies the streak multiplier once the correct-streak reaches the double/triple thresholds", () => {
+    let s = createGame(startEnergy(10), noWeightRng);
+    for (let i = 0; i < ENERGY_CONFIG.streak.doubleAt; i++) {
+      const target = currentTarget(s) as number;
+      s = reducer(s, {
+        type: "guessPoint",
+        point: s.map.features[target].centroid,
+        roundElapsedMs: 1000, // past the speed-bonus threshold to isolate the multiplier
+      });
+    }
+    expect(s.correctStreak).toBe(ENERGY_CONFIG.streak.doubleAt);
+    expect(s.scoreBreakdown?.streakMultiplier).toBe(2);
+  });
+
+  it("ends the run when a wrong click drains energy to zero", () => {
+    let s = createGame(startEnergy(3), noWeightRng);
+    s = { ...s, energy: ENERGY_CONFIG.wrongAttemptCost };
+    const target = currentTarget(s) as number;
+    const [lon, lat] = s.map.features[target].centroid;
+
+    s = reducer(s, {
+      type: "guessPoint",
+      point: [lon + 5, lat],
+      roundElapsedMs: 1000,
+    });
+
+    expect(s.energy).toBe(0);
+    expect(s.phase).toBe("finished");
+  });
+
+  it("skip costs energy and reveals the target", () => {
+    let s = createGame(startEnergy(3), noWeightRng);
+    const target = currentTarget(s) as number;
+    s = reducer(s, { type: "skip" });
+
+    expect(s.status[target]).toBe("missed");
+    expect(s.energy).toBe(ENERGY_CONFIG.start - ENERGY_CONFIG.skipCost);
+    expect(currentTarget(s)).not.toBe(target);
+  });
+
+  it("drains energy on tick, at an increasing rate, and ends the run at zero", () => {
+    let s = createGame(startEnergy(3), noWeightRng);
+    s = reducer(s, { type: "tick" });
+    expect(s.energy).toBeCloseTo(
+      ENERGY_CONFIG.start - ENERGY_CONFIG.drainPerSecond,
+      6,
+    );
+
+    s = { ...s, elapsed: 60 };
+    const before = s.energy;
+    s = reducer(s, { type: "tick" });
+    const fasterDrain = before - s.energy;
+    expect(fasterDrain).toBeCloseTo(
+      ENERGY_CONFIG.drainPerSecond * (1 + ENERGY_CONFIG.drainGrowthPerMinute),
+      6,
+    );
+
+    s = { ...s, energy: 0.5 };
+    s = reducer(s, { type: "tick" });
+    expect(s.energy).toBe(0);
+    expect(s.phase).toBe("finished");
+  });
+
+  it("ignores guessPoint in non-energy modes", () => {
+    const s = createGame(startComplete(3), noShuffleRng);
+    const after = reducer(s, {
+      type: "guessPoint",
+      point: [0, 0],
+      roundElapsedMs: 0,
+    });
+    expect(after).toBe(s);
   });
 });
