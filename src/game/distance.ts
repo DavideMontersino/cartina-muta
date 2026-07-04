@@ -64,3 +64,12 @@ export function pointInGeometry(
   }
   return geometry.coordinates.some((poly) => pointInRings(point, poly));
 }
+
+const COMPASS_ARROWS = ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"];
+
+/** Maps a bearing in degrees (0 = north, clockwise) to an 8-point compass arrow glyph. */
+export function compassArrow(bearingDeg: number): string {
+  const normalized = ((bearingDeg % 360) + 360) % 360;
+  const index = Math.round(normalized / 45) % 8;
+  return COMPASS_ARROWS[index];
+}

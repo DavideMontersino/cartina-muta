@@ -13,14 +13,17 @@ export interface ProjectedFeature {
   cy: number;
 }
 
+export interface ProjectedMap {
+  features: ProjectedFeature[];
+  /** Converts a point in the fixed viewBox coordinate space to [lon, lat], or null if outside the projection's invertible range. */
+  invert: (point: [number, number]) => [number, number] | null;
+}
+
 /**
  * Project a map's features into a fixed viewBox once. The SVG then scales
  * responsively via CSS while keeping a stable internal coordinate system.
  */
-export function projectMap(
-  map: MapDefinition,
-  padding = 24,
-): ProjectedFeature[] {
+export function projectMap(map: MapDefinition, padding = 24): ProjectedMap {
   const collection: FeatureCollection = {
     type: "FeatureCollection",
     features: map.features.map(
@@ -41,7 +44,7 @@ export function projectMap(
   );
   const path = geoPath(projection);
 
-  return map.features.map((f) => {
+  const features = map.features.map((f) => {
     const feature: Feature = {
       type: "Feature",
       properties: null,
@@ -50,4 +53,9 @@ export function projectMap(
     const [cx, cy] = path.centroid(feature);
     return { d: path(feature) ?? "", cx, cy };
   });
+
+  return {
+    features,
+    invert: (point) => projection.invert?.(point) ?? null,
+  };
 }

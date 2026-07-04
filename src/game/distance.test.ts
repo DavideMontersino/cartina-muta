@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { bearingDegrees, haversineKm, pointInGeometry } from "./distance";
+import {
+  bearingDegrees,
+  compassArrow,
+  haversineKm,
+  pointInGeometry,
+} from "./distance";
 
 describe("haversineKm", () => {
   it("is zero for identical points", () => {
@@ -34,6 +39,29 @@ describe("bearingDegrees", () => {
   it("is ~270 (west) when the target is directly west", () => {
     const b = bearingDegrees([9, 45], [8, 45]);
     expect(b).toBeCloseTo(270, 0);
+  });
+});
+
+describe("compassArrow", () => {
+  it("maps cardinal and intercardinal bearings to the right glyph", () => {
+    expect(compassArrow(0)).toBe("↑");
+    expect(compassArrow(45)).toBe("↗");
+    expect(compassArrow(90)).toBe("→");
+    expect(compassArrow(135)).toBe("↘");
+    expect(compassArrow(180)).toBe("↓");
+    expect(compassArrow(225)).toBe("↙");
+    expect(compassArrow(270)).toBe("←");
+    expect(compassArrow(315)).toBe("↖");
+  });
+
+  it("wraps around at 360 and handles negative bearings", () => {
+    expect(compassArrow(360)).toBe("↑");
+    expect(compassArrow(-45)).toBe("↖");
+  });
+
+  it("rounds to the nearest 45-degree sector", () => {
+    expect(compassArrow(20)).toBe("↑");
+    expect(compassArrow(30)).toBe("↗");
   });
 });
 
