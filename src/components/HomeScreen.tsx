@@ -1,11 +1,13 @@
-import { useState } from "react";
-import type { GameConfig, GameMode } from "../game/engine";
-import { MAPS } from "../maps/registry";
-import type { MapDefinition } from "../maps/types";
-import { AuthIndicator } from "./AuthIndicator";
+import { useEffect, useState } from "react";
+import type { GameMode } from "../game/engine";
+import { getProvince, PROVINCES } from "../maps/registry";
+import type { OverviewCollection } from "../maps/types";
+import { AuthMenu } from "./AuthMenu";
+import { ProvincePicker } from "./ProvincePicker";
+import { ProvinceSearch } from "./ProvinceSearch";
 
 interface HomeScreenProps {
-  onStart: (config: GameConfig) => void;
+  onStart: (provinceId: string, mode: GameMode) => void;
 }
 
 const TIMER_OPTIONS = [
@@ -14,43 +16,78 @@ const TIMER_OPTIONS = [
   { label: "10 min", seconds: 600 },
 ];
 
-export function HomeScreen({ onStart }: HomeScreenProps) {
-  const [map, setMap] = useState<MapDefinition>(MAPS[0]);
+const DEFAULT_ID = getProvince("cn") ? "cn" : (PROVINCES[0]?.id ?? "");
 
-  const start = (mode: GameMode) => onStart({ map, mode });
+const randomId = (exclude: string) => {
+  const pool = PROVINCES.filter((p) => p.id !== exclude);
+  return pool[Math.floor(Math.random() * pool.length)]?.id ?? exclude;
+};
+
+export function HomeScreen({ onStart }: HomeScreenProps) {
+  const [selectedId, setSelectedId] = useState(DEFAULT_ID);
+  const [overview, setOverview] = useState<OverviewCollection | null>(null);
+
+  // Lazy-load the national picker map so it stays out of the main JS bundle.
+  useEffect(() => {
+    let cancelled = false;
+    import("../maps/overview.json").then((mod) => {
+      if (!cancelled) setOverview(mod.default as OverviewCollection);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const selected = getProvince(selectedId);
 
   return (
     <div className="home">
-      <AuthIndicator />
+      <AuthMenu />
       <div className="home__inner">
         <header className="home__head">
           <p className="home__eyebrow">Cartina Muta</p>
-          <h1 className="home__title">{map.name}</h1>
+          <h1 className="home__title">
+            {selected
+              ? `Provincia di ${selected.name}`
+              : "Scegli una provincia"}
+          </h1>
           <p className="home__sub">
-            {map.features.length} {map.unit.plural} da riconoscere sulla mappa.
+            {selected
+              ? `${selected.count} comuni da riconoscere · ${selected.region}`
+              : `${PROVINCES.length} province italiane`}
           </p>
         </header>
 
-        {MAPS.length > 1 && (
-          <div className="map-picker">
-            {MAPS.map((m) => (
-              <button
-                type="button"
-                key={m.id}
-                className={`chip ${m.id === map.id ? "chip--active" : ""}`}
-                onClick={() => setMap(m)}
-              >
-                {m.name}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="picker-controls">
+          <ProvinceSearch onSelect={setSelectedId} />
+          <button
+            type="button"
+            className="btn btn--ghost picker-controls__random"
+            onClick={() => setSelectedId((id) => randomId(id))}
+          >
+            🎲 Provincia a caso
+          </button>
+        </div>
+
+        <div className="picker-wrap">
+          {overview ? (
+            <ProvincePicker
+              overview={overview}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+            />
+          ) : (
+            <div className="picker picker--loading" aria-hidden>
+              <div className="spinner" />
+            </div>
+          )}
+        </div>
 
         <div className="modes">
           <section className="mode-card">
             <h2 className="mode-card__title">A tempo</h2>
             <p className="mode-card__desc">
-              Quanti {map.unit.plural} riesci a trovare prima dello scadere?
+              Quanti comuni riesci a trovare prima dello scadere?
             </p>
             <div className="mode-card__actions">
               {TIMER_OPTIONS.map((opt) => (
@@ -58,8 +95,12 @@ export function HomeScreen({ onStart }: HomeScreenProps) {
                   type="button"
                   key={opt.seconds}
                   className="btn btn--primary"
+                  disabled={!selected}
                   onClick={() =>
-                    start({ kind: "timer", durationSeconds: opt.seconds })
+                    onStart(selectedId, {
+                      kind: "timer",
+                      durationSeconds: opt.seconds,
+                    })
                   }
                 >
                   {opt.label}
@@ -71,14 +112,15 @@ export function HomeScreen({ onStart }: HomeScreenProps) {
           <section className="mode-card">
             <h2 className="mode-card__title">Completa tutti</h2>
             <p className="mode-card__desc">
-              Trova tutti i {map.unit.plural}. Nessun limite di tempo — conta la
+              Trova tutti i comuni. Nessun limite di tempo — conta la
               precisione.
             </p>
             <div className="mode-card__actions">
               <button
                 type="button"
                 className="btn btn--primary"
-                onClick={() => start({ kind: "complete" })}
+                disabled={!selected}
+                onClick={() => onStart(selectedId, { kind: "complete" })}
               >
                 Inizia
               </button>

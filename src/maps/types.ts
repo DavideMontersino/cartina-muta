@@ -27,3 +27,25 @@ export interface ComuniCollection {
     geometry: Polygon | MultiPolygon;
   }>;
 }
+
+/** Lightweight per-province entry from provinces.json (always loaded). */
+export interface ProvinceMeta {
+  /** Lowercased 2-letter ISTAT acronym, e.g. "cn". */
+  id: string;
+  /** Province name, e.g. "Cuneo". */
+  name: string;
+  /** Region name, e.g. "Piemonte". */
+  region: string;
+  /** Number of municipalities in the province. */
+  count: number;
+}
+
+/** Shape of overview.json — dissolved province boundaries for the picker map. */
+export interface OverviewCollection {
+  type: "FeatureCollection";
+  features: Array<{
+    type: "Feature";
+    properties: { id: string; name: string };
+    geometry: Polygon | MultiPolygon;
+  }>;
+}

@@ -23,15 +23,22 @@ npm run build      # production build to dist/
 npm run deploy     # wrangler pages deploy dist/ --project-name=cartina-muta
 ```
 
-## Adding a new map
+## Regenerating the maps
 
-1. Add the province to `PROVINCES` in `scripts/extract-map.ts`.
-2. Download the national boundary file (see [CREDIT.md](./CREDIT.md)) to the repo
-   root as `italy-municipalities.geojson`, then run `npm run extract-map`.
-3. Create `src/maps/<id>/index.ts` exporting a `MapDefinition` (copy `cuneo`).
-4. Register it in `src/maps/registry.ts`.
+All 107 Italian provinces are extracted automatically — there is no per-province
+registration step.
 
-The home screen shows a map picker automatically once more than one map exists.
+1. Download the national boundary file (see [CREDIT.md](./CREDIT.md)) to the repo
+   root as `italy-municipalities.geojson`.
+2. Run `npm run extract-map`. This regenerates, from the ISTAT source:
+   - `src/maps/data/<id>.json` — one lazy-loaded file per province (`id` = lowercased
+     2-letter province acronym, e.g. Cuneo → `cn`);
+   - `src/maps/provinces.json` — the always-loaded province index;
+   - `src/maps/overview.json` — province boundaries (municipalities dissolved per
+     province) for the national picker map.
+
+The home screen offers an autocomplete search, the clickable national map, and a
+"random province" button.
 
 ## Data & attribution
 

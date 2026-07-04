@@ -5,7 +5,8 @@ React 19 + TypeScript + Vite, static SPA deployed to **Cloudflare Pages**.
 
 ## Workflow
 
-- **Trunk-based development.** Develop and push directly to `main`. No feature branches or PRs unless the user explicitly asks.
+- **Local work ALWAYS happens in a git worktree.** Any session running on the owner's laptop must create and work in a dedicated git worktree (e.g. `git worktree add ../cartina-muta-<task> -b <task>`), never directly in the primary checkout. Cloud Claude Code sessions run in their own isolated environments, so multiple agents can otherwise clash on the same working tree at the same time — the worktree keeps local edits from colliding with a concurrent cloud session. Merge/push from the worktree when the work is done.
+- **Trunk-based development.** Develop and push directly to `main`. No feature branches or PRs unless the user explicitly asks. (The worktree rule above is about isolating the *working directory*, not about long-lived feature branches — land on `main`.)
 - **After every fix or feature, run `/deliver`** — self-review, local health checks (mirroring CI), commit, push, then babysit CI + deployment until green. Work isn't done until the deploy is confirmed live. The deliver skill reads `.claude/guardrails.md` (a living log of CI/deploy lessons) and updates it on any new failure.
 - **Every change with testable logic should include a regression test.** The game engine (`src/game/engine.ts`) is a pure reducer tested in `src/game/engine.test.ts` with an injectable RNG — cover new engine behavior there.
 - **Lint: auto-fix before checking.** Run `npm run lint:fix` before `npm run lint`.
@@ -45,10 +46,16 @@ schema in `migrations/`. Runtime secrets are **Cloudflare Pages secrets** on the
 run `wrangler pages dev` (with `EMAIL_DEV_STUB=1`, magic links print to the console).
 `EMAIL_FROM` in `src/auth/email.ts` must stay on a Resend-verified domain.
 
-## Adding a map
+## Maps
 
-See `README.md` — add the province to `scripts/extract-map.ts`, run `npm run extract-map`,
-create `src/maps/<id>/index.ts`, and register it in `src/maps/registry.ts`.
+All 107 Italian provinces are playable. `npm run extract-map` regenerates everything
+from the ISTAT source: one lazy-loaded `src/maps/data/<id>.json` per province (id =
+lowercased 2-letter province acronym, e.g. Cuneo → `cn`), the small always-loaded
+`src/maps/provinces.json` index, and `src/maps/overview.json` (municipalities dissolved
+per province via a topojson merge) for the national picker map on the home screen.
+`src/maps/registry.ts` exposes the index and an async `loadMap(id)` (code-split per
+province). The picker renders with a planar `geoIdentity` projection — the merged
+overview's ring winding isn't consistent for d3's spherical geometry.
 
 ## Data & attribution
 
