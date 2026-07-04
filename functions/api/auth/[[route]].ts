@@ -6,4 +6,4 @@ import { createAuth } from "../../../src/auth/server";
 // long-lived process), then given the raw Request — Better Auth reads/writes
 // the session cookie and talks to D1 itself.
 export const onRequest: PagesFunction<AuthEnv> = (ctx) =>
-  createAuth(ctx.env).handler(ctx.request);
+  createAuth(ctx.env, ctx.request).handler(ctx.request);

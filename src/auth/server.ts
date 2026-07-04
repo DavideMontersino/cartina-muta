@@ -14,19 +14,21 @@ import type { AuthEnv } from "./env";
  * `batch`/`exec`/`prepare` on the object) and builds its own Kysely SQLite
  * dialect over it — so we pass `env.DB` straight through, no adapter needed.
  */
-export function createAuth(env: AuthEnv) {
+export function createAuth(env: AuthEnv, request?: Request) {
+  const baseURL = request ? new URL(request.url).origin : env.BETTER_AUTH_URL;
   return betterAuth({
     database: env.DB,
     secret: env.BETTER_AUTH_SECRET,
-    baseURL: env.BETTER_AUTH_URL,
+    baseURL,
     // The app is reachable at both the Cloudflare Pages subdomain and the
     // custom domain; trust the callbackURL from either one (plus whatever
     // BETTER_AUTH_URL is set to, e.g. localhost in dev).
-    trustedOrigins: [
+    trustedOrigins: Array.from(new Set([
+      baseURL,
       env.BETTER_AUTH_URL,
       "https://cartina-muta.pages.dev",
       "https://cartina-muta.davidemontersino.com",
-    ],
+    ])),
     emailAndPassword: {
       enabled: true,
       // Start lenient: a player can sign in and play immediately. Revisit
