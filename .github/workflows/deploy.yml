@@ -1,0 +1,124 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to Cloudflare Pages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # Pin wranglerVersion: without it wrangler-action tries to `npx
+      # wrangler@<latest>`, which npx cannot auto-install in CI and the step
+      # exits 1 (guardrail: wrangler-action npx-installs latest).
+      - name: Deploy
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "3.90.0"
+          command: pages deploy dist/ --project-name=cartina-muta --branch=${{ github.head_ref || 'main' }}
+
+      - name: Verify deployment and report to in-progress issue
+        if: github.ref == 'refs/heads/main'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Reporting is non-fatal: the deploy already succeeded by this
+            // step, so a transient GitHub API error must NOT fail the job
+            // (guardrail: verify step false-negative).
+            try {
+              const { data: issues } = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                labels: 'in-progress',
+                state: 'open',
+                per_page: 1
+              });
+
+              const expectedSha = context.sha.slice(0, 7);
+              const deployUrl = 'https://cartina-muta.pages.dev';
+              let verified = false;
+              let deployedSha = 'unknown';
+
+              // Retry for CDN propagation.
+              for (let i = 0; i < 5; i++) {
+                if (i > 0) await new Promise(r => setTimeout(r, 30000));
+                try {
+                  const resp = await fetch(`${deployUrl}?_nocache=${Date.now()}`);
+                  const html = await resp.text();
+                  const match = html.match(/<meta name="build-sha" content="([^"]+)"/);
+                  deployedSha = match ? match[1] : 'not found';
+                  if (deployedSha === expectedSha) { verified = true; break; }
+                } catch (e) {
+                  deployedSha = `fetch error: ${e.message}`;
+                }
+              }
+
+              const icon = verified ? '✅' : '❌';
+              const body = verified
+                ? `**Deploy ${icon}** \`${expectedSha}\` verified live at ${deployUrl}`
+                : `**Deploy ${icon}** SHA mismatch — expected \`${expectedSha}\`, got \`${deployedSha}\` at ${deployUrl}`;
+
+              if (issues.length > 0) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issues[0].number,
+                  body
+                });
+              }
+              if (!verified) core.warning(body);
+            } catch (err) {
+              core.warning(`Deploy verification/reporting failed (deploy itself succeeded): ${err.message}`);
+            }
+
+      - name: Comment preview URL on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = '${{ steps.deploy.outputs.deployment-url }}';
+            if (!url) return;
+            const body = `**Preview:** ${url}`;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(
+              (c) => c.user.type === 'Bot' && c.body.includes('**Preview:**')
+            );
+            const params = { owner: context.repo.owner, repo: context.repo.repo, body };
+            if (existing) {
+              await github.rest.issues.updateComment({ ...params, comment_id: existing.id });
+            } else {
+              await github.rest.issues.createComment({ ...params, issue_number: context.issue.number });
+            }
