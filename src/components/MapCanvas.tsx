@@ -8,6 +8,8 @@ interface MapCanvasProps {
   status: RegionStatus[];
   /** Index currently flashing red after a wrong guess, or null. */
   flashIndex: number | null;
+  /** Index whose name to reveal briefly after a wrong guess, or null. */
+  wrongIndex: number | null;
   /** Index to briefly reveal after a skip, or null. */
   revealIndex: number | null;
   onPick: (index: number) => void;
@@ -18,6 +20,7 @@ export function MapCanvas({
   map,
   status,
   flashIndex,
+  wrongIndex,
   revealIndex,
   onPick,
   interactive,
@@ -75,6 +78,16 @@ export function MapCanvas({
           ) : null,
         )}
       </g>
+      {wrongIndex !== null && (
+        <text
+          x={shapes[wrongIndex].cx}
+          y={shapes[wrongIndex].cy}
+          className="wrong-label"
+          pointerEvents="none"
+        >
+          {map.features[wrongIndex].name}
+        </text>
+      )}
     </svg>
   );
 }

@@ -348,6 +348,35 @@ button {
   stroke-width: 2px;
 }
 
+.wrong-label {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  fill: var(--terracotta);
+  text-anchor: middle;
+  dominant-baseline: middle;
+  paint-order: stroke;
+  stroke: rgba(242, 233, 214, 0.92);
+  stroke-width: 4px;
+  animation: wrong-label-fade 1.3s ease forwards;
+}
+@keyframes wrong-label-fade {
+  0% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 .progress-bar {
   width: min(560px, 90%);
   height: 6px;

@@ -23,8 +23,10 @@ function formatClock(totalSeconds: number): string {
 export function GameScreen({ config, onExit }: GameScreenProps) {
   const [state, dispatch] = useReducer(reducer, config, (c) => createGame(c));
   const [flashIndex, setFlashIndex] = useState<number | null>(null);
+  const [wrongIndex, setWrongIndex] = useState<number | null>(null);
   const [revealIndex, setRevealIndex] = useState<number | null>(null);
   const flashTimer = useRef<number | undefined>(undefined);
+  const wrongTimer = useRef<number | undefined>(undefined);
   const revealTimer = useRef<number | undefined>(undefined);
 
   const total = config.map.features.length;
@@ -38,17 +40,23 @@ export function GameScreen({ config, onExit }: GameScreenProps) {
     return () => window.clearInterval(id);
   }, [playing]);
 
-  // Flash a wrong guess red for a moment.
+  // On a wrong guess: flash the region red briefly and surface its name a
+  // little longer so the player can read what they actually clicked.
   useEffect(() => {
     if (!state.feedback || state.feedback.correct) return;
-    setFlashIndex(state.feedback.index);
+    const { index } = state.feedback;
+    setFlashIndex(index);
+    setWrongIndex(index);
     window.clearTimeout(flashTimer.current);
+    window.clearTimeout(wrongTimer.current);
     flashTimer.current = window.setTimeout(() => setFlashIndex(null), 550);
+    wrongTimer.current = window.setTimeout(() => setWrongIndex(null), 1300);
   }, [state.feedback]);
 
   useEffect(
     () => () => {
       window.clearTimeout(flashTimer.current);
+      window.clearTimeout(wrongTimer.current);
       window.clearTimeout(revealTimer.current);
     },
     [],
@@ -113,6 +121,7 @@ export function GameScreen({ config, onExit }: GameScreenProps) {
           map={config.map}
           status={state.status}
           flashIndex={flashIndex}
+          wrongIndex={wrongIndex}
           revealIndex={revealIndex}
           onPick={handlePick}
           interactive={playing}
