@@ -11,10 +11,12 @@ Attribution for all third-party data and assets used in this project.
 
 ## Population (energy-run mode sampling)
 
-- **Source:** [ISTAT](https://www.istat.it/) resident population by comune (the same open-data
-  portal as the municipality boundaries above — see [Popolazione e famiglie](https://www.istat.it/it/popolazione-e-famiglie),
-  latest available year).
-- **License:** ISTAT open data.
+- **Source:** [ISTAT](https://www.istat.it/) resident population by comune (permanent
+  population census, 2021), obtained from the tidy per-comune redistribution
+  [opendatasicilia/comuni-italiani](https://github.com/opendatasicilia/comuni-italiani)
+  (`dati/popolazione_2021.csv`, keyed on the ISTAT `pro_com_t` code; Sassofeltrio —
+  which moved province in 2021 — sourced from the same repo's `ISTAT_popolazione_2021.csv`).
+- **License:** ISTAT open data (CC BY 4.0).
 - **Used for:** population-weighted sampling order in the energy-run game mode. Joined at
   extraction time from an `istat-popolazione.csv` (two columns: `istat,population`) placed at
   the repo root — not committed (same pattern as `italy-municipalities.geojson`, see
