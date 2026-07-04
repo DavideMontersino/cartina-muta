@@ -14,3 +14,4 @@ tsconfig.tsbuildinfo
 
 # Raw source dataset — large; the extracted per-map JSON is committed instead.
 italy-municipalities.geojson
+istat-popolazione.csv

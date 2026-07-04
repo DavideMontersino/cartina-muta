@@ -6,6 +6,10 @@ export interface MapFeature {
   /** ISTAT municipality code — stable id, safe for dedup/analytics. */
   istat: string;
   geometry: Polygon | MultiPolygon;
+  /** Resident population (ISTAT). Falls back to 1 (uniform weight) when unknown. */
+  population: number;
+  /** Geographic centroid [lon, lat], used for distance-based scoring. */
+  centroid: [number, number];
 }
 
 /** A playable map: a set of regions to identify by clicking. */
@@ -23,7 +27,14 @@ export interface ComuniCollection {
   type: "FeatureCollection";
   features: Array<{
     type: "Feature";
-    properties: { name: string; istat: string };
+    properties: {
+      name: string;
+      istat: string;
+      /** Absent in data extracted before population join support; loadMap() falls back to 1. */
+      population?: number;
+      /** Absent in data extracted before centroid support; loadMap() computes it from the geometry. */
+      centroid?: [number, number];
+    };
     geometry: Polygon | MultiPolygon;
   }>;
 }

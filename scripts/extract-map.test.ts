@@ -2,8 +2,10 @@ import { merge } from "topojson-client";
 import { topology } from "topojson-server";
 import { describe, expect, it } from "vitest";
 import {
+  computeCentroid,
   computeOverviewFeatures,
   type Geometry,
+  parsePopulationCsv,
   type Ring,
   type SourceCollection,
 } from "./extract-map";
@@ -137,5 +139,76 @@ describe("computeOverviewFeatures", () => {
           };
 
     expect(isSimpleGeometry(rounded)).toBe(false);
+  });
+});
+
+describe("parsePopulationCsv", () => {
+  it("parses istat,population rows", () => {
+    const csv = "001001,1000\n001002,2500\n";
+    const map = parsePopulationCsv(csv);
+    expect(map.get("001001")).toBe(1000);
+    expect(map.get("001002")).toBe(2500);
+  });
+
+  it("skips a header row", () => {
+    const csv = "istat,population\n001001,1000\n";
+    const map = parsePopulationCsv(csv);
+    expect(map.size).toBe(1);
+    expect(map.get("001001")).toBe(1000);
+  });
+
+  it("skips blank lines and malformed rows", () => {
+    const csv = "001001,1000\n\n001002,not-a-number\n001003,3000";
+    const map = parsePopulationCsv(csv);
+    expect([...map.keys()].sort()).toEqual(["001001", "001003"]);
+  });
+});
+
+describe("computeCentroid", () => {
+  it("returns the centre point of a square Polygon", () => {
+    const square: Geometry = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [0, 0],
+          [0, 10],
+          [10, 10],
+          [10, 0],
+          [0, 0],
+        ],
+      ],
+    };
+    const [lon, lat] = computeCentroid(square);
+    expect(lon).toBeCloseTo(5, 1);
+    expect(lat).toBeCloseTo(5, 1);
+  });
+
+  it("returns a point within the larger part of a MultiPolygon", () => {
+    const multi: Geometry = {
+      type: "MultiPolygon",
+      coordinates: [
+        [
+          [
+            [0, 0],
+            [0, 10],
+            [10, 10],
+            [10, 0],
+            [0, 0],
+          ],
+        ],
+        [
+          [
+            [100, 100],
+            [100, 101],
+            [101, 101],
+            [101, 100],
+            [100, 100],
+          ],
+        ],
+      ],
+    };
+    const [lon, lat] = computeCentroid(multi);
+    expect(lon).toBeCloseTo(5, 0);
+    expect(lat).toBeCloseTo(5, 0);
   });
 });

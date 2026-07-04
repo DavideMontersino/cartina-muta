@@ -1,5 +1,11 @@
+import { geoCentroid } from "d3-geo";
 import provinces from "./provinces.json";
-import type { ComuniCollection, MapDefinition, ProvinceMeta } from "./types";
+import type {
+  ComuniCollection,
+  MapDefinition,
+  MapFeature,
+  ProvinceMeta,
+} from "./types";
 
 /**
  * The province index — small, always loaded. Each province's border geometry
@@ -19,6 +25,23 @@ export const getProvince = (id: string): ProvinceMeta | undefined =>
 
 const displayName = (name: string) => `Provincia di ${name}`;
 
+/**
+ * Maps a raw extracted feature to the app-facing MapFeature shape, filling in
+ * population/centroid for data extracted before those fields existed (falls
+ * back to population 1 — uniform weight — and a geometry-derived centroid).
+ */
+export function toMapFeature(
+  f: ComuniCollection["features"][number],
+): MapFeature {
+  return {
+    name: f.properties.name,
+    istat: f.properties.istat,
+    geometry: f.geometry,
+    population: f.properties.population ?? 1,
+    centroid: f.properties.centroid ?? geoCentroid(f.geometry),
+  };
+}
+
 /** Load a province's full playable map (borders + names). */
 export async function loadMap(id: string): Promise<MapDefinition> {
   const meta = getProvince(id);
@@ -32,10 +55,6 @@ export async function loadMap(id: string): Promise<MapDefinition> {
     id: meta.id,
     name: displayName(meta.name),
     unit: { singular: "comune", plural: "comuni" },
-    features: collection.features.map((f) => ({
-      name: f.properties.name,
-      istat: f.properties.istat,
-      geometry: f.geometry,
-    })),
+    features: collection.features.map(toMapFeature),
   };
 }

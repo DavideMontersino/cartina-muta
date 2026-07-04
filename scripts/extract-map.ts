@@ -12,10 +12,26 @@
  *   `italy-municipalities.geojson` (see README), then run:  npm run extract-map
  *
  * Province ids are the lowercased 2-letter ISTAT acronym (e.g. Cuneo -> "cn").
+ *
+ * Each comune also gets a `population` (for the energy-run mode's weighted
+ * sampling) and a `centroid` (for distance-based scoring). Population is
+ * joined from an optional `istat-popolazione.csv` at the repo root — two
+ * columns, `istat,population`, header row optional (see CREDIT.md for where
+ * to source it). Comuni missing from that file, or if it isn't present at
+ * all, fall back to population 1 (weighted sampling then degrades to
+ * uniform). Centroids are computed from the (already simplified) geometry —
+ * no extra data needed.
  */
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { geoCentroid } from "d3-geo";
 import { merge } from "topojson-client";
 import { topology } from "topojson-server";
 import { presimplify, simplify } from "topojson-simplify";
@@ -24,6 +40,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
 const MAPS_DIR = resolve(ROOT, "src/maps");
 const DATA_DIR = resolve(MAPS_DIR, "data");
+const POPULATION_CSV_PATH = resolve(ROOT, "istat-popolazione.csv");
 
 /** Coordinate decimal places for per-province maps. 4 ≈ 11m — plenty. */
 const PRECISION = 4;
@@ -119,10 +136,45 @@ interface ProvinceMeta {
   count: number;
 }
 
+/**
+ * Parses `istat,population` CSV rows (a header row, if present, is skipped —
+ * any row whose population column isn't numeric is ignored). Pure, no file
+ * I/O, so it's unit-testable.
+ */
+export function parsePopulationCsv(csv: string): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const line of csv.split(/\r?\n/)) {
+    const [istatRaw, populationRaw] = line.split(",");
+    const istat = istatRaw?.trim();
+    const population = Number(populationRaw?.trim());
+    if (!istat || !Number.isFinite(population)) continue;
+    map.set(istat, population);
+  }
+  return map;
+}
+
+/** WGS84 centroid `[lon, lat]` of a Polygon/MultiPolygon geometry. */
+export function computeCentroid(geometry: Geometry): Position {
+  const [lon, lat] = geoCentroid(geometry);
+  return [roundTo(lon, PRECISION), roundTo(lat, PRECISION)];
+}
+
+function loadPopulationByIstat(): Map<string, number> {
+  if (!existsSync(POPULATION_CSV_PATH)) {
+    console.warn(
+      `  population: ${POPULATION_CSV_PATH} not found — every comune defaults ` +
+        "to population 1 (weighted sampling degrades to uniform). See CREDIT.md.",
+    );
+    return new Map();
+  }
+  return parsePopulationCsv(readFileSync(POPULATION_CSV_PATH, "utf8"));
+}
+
 function main() {
   const srcPath = resolve(ROOT, "italy-municipalities.geojson");
   console.log(`Reading ${srcPath} ...`);
   const src = JSON.parse(readFileSync(srcPath, "utf8")) as SourceCollection;
+  const populationByIstat = loadPopulationByIstat();
 
   // Group municipalities by province.
   const byProvince = new Map<string, SourceFeature[]>();
@@ -141,14 +193,19 @@ function main() {
   for (const [id, group] of byProvince) {
     const { prov_name, reg_name } = group[0].properties;
     const features = group
-      .map((f) => ({
-        type: "Feature" as const,
-        properties: {
-          name: f.properties.name,
-          istat: f.properties.com_istat_code,
-        },
-        geometry: simplifyGeometry(f.geometry, PRECISION),
-      }))
+      .map((f) => {
+        const geometry = simplifyGeometry(f.geometry, PRECISION);
+        return {
+          type: "Feature" as const,
+          properties: {
+            name: f.properties.name,
+            istat: f.properties.com_istat_code,
+            population: populationByIstat.get(f.properties.com_istat_code) ?? 1,
+            centroid: computeCentroid(geometry),
+          },
+          geometry,
+        };
+      })
       .sort((a, b) => byName(a.properties, b.properties));
 
     const collection = { type: "FeatureCollection" as const, features };
