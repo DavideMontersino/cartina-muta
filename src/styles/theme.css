@@ -115,6 +115,19 @@ button {
   place-items: center;
   padding: 2rem 1.25rem;
 }
+.home__layout {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2rem;
+  width: 100%;
+}
+@media (max-width: 900px) {
+  .home__layout {
+    flex-direction: column;
+    align-items: center;
+  }
+}
 .home__inner {
   width: min(760px, 100%);
   text-align: center;
@@ -682,6 +695,95 @@ button {
 }
 .picker__prov--active:hover {
   fill: var(--terracotta);
+}
+
+/* ---------- Leaderboard (home) ---------- */
+.leaderboard {
+  width: min(320px, 100%);
+  flex-shrink: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 252, 244, 0.85),
+    var(--paper-2)
+  );
+  border: 1px solid var(--paper-edge);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.1rem;
+  text-align: left;
+  box-shadow: var(--shadow);
+}
+.leaderboard__head {
+  margin-bottom: 0.75rem;
+}
+.leaderboard__title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.15rem;
+  margin: 0;
+}
+.leaderboard__modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.9rem;
+}
+.leaderboard__mode-btn {
+  border: 1px solid var(--paper-edge);
+  background: var(--paper-2);
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+.leaderboard__mode-btn.is-active {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.leaderboard__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.leaderboard__row {
+  display: grid;
+  grid-template-columns: 1.5rem 1fr auto auto;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+}
+.leaderboard__rank {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+.leaderboard__name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.leaderboard__found {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+.leaderboard__time {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+.leaderboard__loading,
+.leaderboard__empty,
+.leaderboard__error {
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  margin: 0;
+}
+.leaderboard__error {
+  color: var(--terracotta);
 }
 
 /* ---------- Loading ---------- */

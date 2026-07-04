@@ -69,5 +69,28 @@ export function createAuth(env: AuthEnv, request?: Request) {
       cookiePrefix: "cartina",
       // Cookies are HttpOnly + Secure + SameSite=Lax by Better Auth default.
     },
+    databaseHooks: {
+      user: {
+        update: {
+          // Leaderboard name is unchangeable once set (issue #3). Never
+          // throw here — the magic-link plugin already only reads `name`
+          // when creating a brand-new user (a returning user's sign-in
+          // never touches their stored name), so this only guards a stray
+          // second call to /update-user after NamePrompt's one-time set.
+          // Silently keeping the existing name means a mismatched name
+          // typed anywhere never breaks a legitimate request.
+          before: async (data, ctx) => {
+            if (typeof data.name !== "string" || !ctx) return;
+            const userId = ctx.context.session?.user.id;
+            if (!userId) return;
+            const existing =
+              await ctx.context.internalAdapter.findUserById(userId);
+            if (existing?.name && data.name !== existing.name) {
+              return { data: { name: existing.name } };
+            }
+          },
+        },
+      },
+    },
   });
 }

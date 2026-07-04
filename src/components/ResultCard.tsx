@@ -1,8 +1,10 @@
 import type { GameState } from "../game/engine";
+import type { ScoreSubmissionPayload } from "../leaderboard/types";
 import { SignInCard } from "./SignInCard";
 
 interface ResultCardProps {
   state: GameState;
+  submission: ScoreSubmissionPayload | null;
   onRestart: () => void;
   onExit: () => void;
 }
@@ -14,7 +16,7 @@ function formatClock(totalSeconds: number): string {
   return `${m}:${r.toString().padStart(2, "0")}`;
 }
 
-export function ResultCard({ state, onExit }: ResultCardProps) {
+export function ResultCard({ state, submission, onExit }: ResultCardProps) {
   const total = state.map.features.length;
   const perfect = state.found === total && state.mistakes === 0;
   const timedOut =
@@ -49,7 +51,7 @@ export function ResultCard({ state, onExit }: ResultCardProps) {
             <span className="result-stat__label">tempo</span>
           </div>
         </div>
-        <SignInCard />
+        <SignInCard submission={submission} />
         <button
           type="button"
           className="btn btn--ghost result-card__again"
