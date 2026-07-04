@@ -95,3 +95,72 @@ describe("validateScoreSubmission", () => {
     expect(validateScoreSubmission("nope").ok).toBe(false);
   });
 });
+
+describe("validateScoreSubmission — energy mode", () => {
+  function energyPayload(overrides: Record<string, unknown> = {}) {
+    return basePayload({
+      mode: { kind: "energy" },
+      score: 1250,
+      elapsedMs: 90_000,
+      actionLog: [
+        {
+          tMs: 812,
+          type: "guessPoint",
+          targetIstat: "004078",
+          point: [7.55, 44.38],
+          correct: true,
+        },
+        {
+          tMs: 1500,
+          type: "guessPoint",
+          targetIstat: "004050",
+          point: [7.6, 44.4],
+          correct: false,
+        },
+        { tMs: 4200, type: "skip", targetIstat: "004050" },
+      ],
+      ...overrides,
+    });
+  }
+
+  it("accepts a well-formed energy submission with a score and guessPoint entries", () => {
+    const result = validateScoreSubmission(energyPayload());
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.score).toBe(1250);
+    }
+  });
+
+  it("rejects an energy submission missing a score", () => {
+    const payload = energyPayload();
+    delete (payload as Record<string, unknown>).score;
+    expect(validateScoreSubmission(payload).ok).toBe(false);
+  });
+
+  it("rejects a negative or non-integer score", () => {
+    expect(validateScoreSubmission(energyPayload({ score: -1 })).ok).toBe(
+      false,
+    );
+    expect(validateScoreSubmission(energyPayload({ score: 1.5 })).ok).toBe(
+      false,
+    );
+  });
+
+  it("rejects a guessPoint entry with a malformed point", () => {
+    expect(
+      validateScoreSubmission(
+        energyPayload({
+          actionLog: [
+            {
+              tMs: 100,
+              type: "guessPoint",
+              targetIstat: "004078",
+              point: [7.55],
+              correct: true,
+            },
+          ],
+        }),
+      ).ok,
+    ).toBe(false);
+  });
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rankEntries } from "./rank";
+import { compareEnergyEntries, rankEntries } from "./rank";
 
 describe("rankEntries", () => {
   it("ranks by found descending first", () => {
@@ -49,5 +49,82 @@ describe("rankEntries", () => {
     const copy = [...input];
     rankEntries(input);
     expect(input).toEqual(copy);
+  });
+});
+
+describe("rankEntries with compareEnergyEntries", () => {
+  it("ranks by score descending first", () => {
+    const ranked = rankEntries(
+      [
+        {
+          id: "a",
+          found: 30,
+          elapsedMs: 1000,
+          mistakes: 0,
+          createdAt: 1,
+          score: 500,
+        },
+        {
+          id: "b",
+          found: 10,
+          elapsedMs: 5000,
+          mistakes: 5,
+          createdAt: 1,
+          score: 900,
+        },
+      ],
+      compareEnergyEntries,
+    );
+    expect(ranked.map((e) => e.id)).toEqual(["b", "a"]);
+  });
+
+  it("breaks a score tie by found descending", () => {
+    const ranked = rankEntries(
+      [
+        {
+          id: "shallow",
+          found: 10,
+          elapsedMs: 1000,
+          mistakes: 0,
+          createdAt: 1,
+          score: 500,
+        },
+        {
+          id: "deep",
+          found: 20,
+          elapsedMs: 1000,
+          mistakes: 0,
+          createdAt: 1,
+          score: 500,
+        },
+      ],
+      compareEnergyEntries,
+    );
+    expect(ranked.map((e) => e.id)).toEqual(["deep", "shallow"]);
+  });
+
+  it("treats a null/missing score as 0", () => {
+    const ranked = rankEntries(
+      [
+        {
+          id: "no-score",
+          found: 5,
+          elapsedMs: 1000,
+          mistakes: 0,
+          createdAt: 1,
+          score: null,
+        },
+        {
+          id: "some-score",
+          found: 5,
+          elapsedMs: 1000,
+          mistakes: 0,
+          createdAt: 1,
+          score: 1,
+        },
+      ],
+      compareEnergyEntries,
+    );
+    expect(ranked.map((e) => e.id)).toEqual(["some-score", "no-score"]);
   });
 });

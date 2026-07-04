@@ -1,5 +1,5 @@
 import type { GameMode } from "../game/engine";
-import { rankEntries } from "./rank";
+import { compareEnergyEntries, rankEntries } from "./rank";
 import type { LeaderboardEntry } from "./types";
 
 const BOARD_FETCH_CAP = 1000;
@@ -12,6 +12,7 @@ interface BoardRow {
   totalRegions: number;
   mistakes: number;
   elapsedMs: number;
+  score: number | null;
   createdAt: number;
 }
 
@@ -27,13 +28,21 @@ export async function fetchBoard(
   modeKind: GameMode["kind"],
   modeDurationSeconds: number | null,
 ): Promise<LeaderboardEntry[]> {
+  const isEnergy = modeKind === "energy";
+  // Which single row counts as a user's "best" game (picked before board-wide
+  // ranking) must match that mode's ranking policy, or a user's board rank
+  // could come from a row that isn't actually their best by that policy.
+  const bestOrderBy = isEnergy
+    ? `gr."score" DESC, gr."found" DESC, gr."elapsedMs" ASC`
+    : `gr."found" DESC, gr."elapsedMs" ASC, gr."mistakes" ASC`;
+
   const result = await db
     .prepare(
       `WITH best AS (
         SELECT gr.*,
           ROW_NUMBER() OVER (
             PARTITION BY gr."userId"
-            ORDER BY gr."found" DESC, gr."elapsedMs" ASC, gr."mistakes" ASC
+            ORDER BY ${bestOrderBy}
           ) AS rn
         FROM "game_result" gr
         WHERE gr."provinceId" = ?1 AND gr."modeKind" = ?2 AND gr."modeDurationSeconds" IS ?3
@@ -41,7 +50,7 @@ export async function fetchBoard(
       SELECT best."id" AS id, best."userId" AS userId, u."name" AS name,
              best."found" AS found, best."totalRegions" AS totalRegions,
              best."mistakes" AS mistakes, best."elapsedMs" AS elapsedMs,
-             best."createdAt" AS createdAt
+             best."score" AS score, best."createdAt" AS createdAt
       FROM best JOIN "user" u ON u."id" = best."userId"
       WHERE best.rn = 1
       LIMIT ?4`,
@@ -49,5 +58,8 @@ export async function fetchBoard(
     .bind(provinceId, modeKind, modeDurationSeconds, BOARD_FETCH_CAP)
     .all<BoardRow>();
 
-  return rankEntries(result.results ?? []);
+  return rankEntries(
+    result.results ?? [],
+    isEnergy ? compareEnergyEntries : undefined,
+  );
 }

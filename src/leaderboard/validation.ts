@@ -11,6 +11,7 @@ const MAX_ACTION_LOG_ENTRIES = 5000;
 const MAX_MISTAKES = 100_000;
 const TIMER_GRACE_MS = 3_000;
 const COMPLETE_CEILING_MS = 6 * 60 * 60 * 1000; // 6h, generous garbage filter only
+const ENERGY_CEILING_MS = 6 * 60 * 60 * 1000; // same generous garbage filter — no fixed duration
 
 export type ValidatedSubmission = ScoreSubmissionPayload & {
   totalRegions: number;
@@ -63,10 +64,20 @@ export function validateScoreSubmission(raw: unknown): SubmissionValidation {
     return { ok: false, error: "mistakes out of range." };
   }
 
+  let score: number | undefined;
+  if (mode.kind === "energy") {
+    if (!isNonNegativeInt(body.score)) {
+      return { ok: false, error: "Invalid score." };
+    }
+    score = body.score;
+  }
+
   const ceiling =
     mode.kind === "timer"
       ? mode.durationSeconds * 1000 + TIMER_GRACE_MS
-      : COMPLETE_CEILING_MS;
+      : mode.kind === "energy"
+        ? ENERGY_CEILING_MS
+        : COMPLETE_CEILING_MS;
   if (elapsedMs > ceiling) {
     return { ok: false, error: "elapsedMs exceeds the mode's bound." };
   }
@@ -83,6 +94,7 @@ export function validateScoreSubmission(raw: unknown): SubmissionValidation {
       missed,
       mistakes,
       elapsedMs,
+      score,
       actionLog: actionLogResult.value,
       totalRegions: province.count,
     },
@@ -104,6 +116,9 @@ function validateMode(
   const mode = raw as Record<string, unknown>;
   if (mode.kind === "complete") {
     return { ok: true, value: { kind: "complete" } };
+  }
+  if (mode.kind === "energy") {
+    return { ok: true, value: { kind: "energy" } };
   }
   if (
     mode.kind === "timer" &&
@@ -159,6 +174,20 @@ function validateActionLog(
         type: "guess",
         targetIstat: e.targetIstat,
         guessIstat: e.guessIstat,
+        correct: e.correct,
+      });
+    } else if (
+      e.type === "guessPoint" &&
+      Array.isArray(e.point) &&
+      e.point.length === 2 &&
+      e.point.every((n) => typeof n === "number" && Number.isFinite(n)) &&
+      typeof e.correct === "boolean"
+    ) {
+      entries.push({
+        tMs: e.tMs,
+        type: "guessPoint",
+        targetIstat: e.targetIstat,
+        point: e.point as [number, number],
         correct: e.correct,
       });
     } else {

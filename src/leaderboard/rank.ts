@@ -4,6 +4,8 @@ export interface RankableEntry {
   elapsedMs: number;
   mistakes: number;
   createdAt: number;
+  /** Itemized point total — energy mode only; null/absent for timer/complete. */
+  score?: number | null;
 }
 
 /**
@@ -30,12 +32,29 @@ export function compareEntries(a: RankableEntry, b: RankableEntry): number {
   return a.createdAt - b.createdAt;
 }
 
-/** Sorts entries by the tie-breaker policy and assigns 1-based ranks. */
+/**
+ * Energy mode's ranking policy (GitHub issue #8): score is the trophy, so it
+ * ranks first; found ("how deep did you get") breaks a score tie, then
+ * elapsedMs ASC, then createdAt ASC.
+ */
+export function compareEnergyEntries(
+  a: RankableEntry,
+  b: RankableEntry,
+): number {
+  const scoreDiff = (b.score ?? 0) - (a.score ?? 0);
+  if (scoreDiff !== 0) return scoreDiff;
+  if (a.found !== b.found) return b.found - a.found;
+  if (a.elapsedMs !== b.elapsedMs) return a.elapsedMs - b.elapsedMs;
+  return a.createdAt - b.createdAt;
+}
+
+/** Sorts entries by the given tie-breaker policy (default: compareEntries) and assigns 1-based ranks. */
 export function rankEntries<T extends RankableEntry>(
   entries: T[],
+  compare: (a: RankableEntry, b: RankableEntry) => number = compareEntries,
 ): (T & { rank: number })[] {
   return entries
     .slice()
-    .sort(compareEntries)
+    .sort(compare)
     .map((entry, i) => ({ ...entry, rank: i + 1 }));
 }
