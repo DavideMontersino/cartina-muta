@@ -59,6 +59,25 @@ describe("getPhrasePool", () => {
       expect(getPhrasePool("bo", event)).toBe(defaultPhrases[event]);
     }
   });
+
+  it("resolves a non-empty pool for every event across all Piedmont provinces", () => {
+    const provinces = ["al", "at", "bi", "cn", "no", "to", "vb", "vc"];
+    const events = [
+      "correct",
+      "wrong",
+      "streakCorrect3",
+      "streakCorrect5",
+      "streakCorrect10",
+      "streakWrong3",
+      "streakWrong5",
+      "streakWrong10",
+    ] as const;
+    for (const province of provinces) {
+      for (const event of events) {
+        expect(getPhrasePool(province, event).length).toBeGreaterThan(0);
+      }
+    }
+  });
 });
 
 describe("pickReaction", () => {
