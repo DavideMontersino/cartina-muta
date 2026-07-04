@@ -47,7 +47,7 @@ export function HomeScreen({ onStart }: HomeScreenProps) {
       <div className="home__layout">
         <div className="home__inner">
           <header className="home__head">
-            <p className="home__eyebrow">Cartina Muta</p>
+            <p className="home__eyebrow">Campanilismi</p>
             <h1 className="home__title">
               {selected
                 ? `Provincia di ${selected.name}`

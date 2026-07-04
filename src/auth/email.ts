@@ -5,7 +5,7 @@ import type { AuthEnv } from "./env";
  * be on a Resend-verified domain (DKIM/SPF configured) or delivery fails.
  * Reuses the owner's verified `updates.davidemontersino.com` domain.
  */
-export const EMAIL_FROM = "Cartina Muta <noreply@updates.davidemontersino.com>";
+export const EMAIL_FROM = "Campanilismi <noreply@updates.davidemontersino.com>";
 
 export interface EmailMessage {
   to: string;

@@ -1,4 +1,4 @@
-# Cartina Muta
+# Campanilismi
 
 A blind-map geography game. You're shown the borders of every municipality in an
 area — the game names one, you click it. Built to be easy to extend to new maps.
@@ -30,9 +30,14 @@ registration step.
 
 1. Download the national boundary file (see [CREDIT.md](./CREDIT.md)) to the repo
    root as `italy-municipalities.geojson`.
-2. Run `npm run extract-map`. This regenerates, from the ISTAT source:
+2. Optionally, download ISTAT's resident population by comune (see
+   [CREDIT.md](./CREDIT.md)) to the repo root as `istat-popolazione.csv` (two columns:
+   `istat,population`). Without it, every comune defaults to population 1 and the
+   energy-run mode's weighted sampling degrades to uniform.
+3. Run `npm run extract-map`. This regenerates, from the ISTAT source:
    - `src/maps/data/<id>.json` — one lazy-loaded file per province (`id` = lowercased
-     2-letter province acronym, e.g. Cuneo → `cn`);
+     2-letter province acronym, e.g. Cuneo → `cn`), each comune carrying its population
+     and geographic centroid alongside its border;
    - `src/maps/provinces.json` — the always-loaded province index;
    - `src/maps/overview.json` — province boundaries (municipalities dissolved per
      province) for the national picker map.

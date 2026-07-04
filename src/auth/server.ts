@@ -39,7 +39,7 @@ export function createAuth(env: AuthEnv, request?: Request) {
       sendResetPassword: async ({ user, url }) =>
         sendEmail(env, {
           to: user.email,
-          subject: "Reimposta la tua password di Cartina Muta",
+          subject: "Reimposta la tua password di Campanilismi",
           text: `Reimposta la password: ${url}`,
         }),
     },
@@ -47,7 +47,7 @@ export function createAuth(env: AuthEnv, request?: Request) {
       sendVerificationEmail: async ({ user, url }) =>
         sendEmail(env, {
           to: user.email,
-          subject: "Conferma la tua email per Cartina Muta",
+          subject: "Conferma la tua email per Campanilismi",
           text: `Conferma la tua email: ${url}`,
         }),
     },
@@ -56,7 +56,7 @@ export function createAuth(env: AuthEnv, request?: Request) {
         sendMagicLink: async ({ email, url }) =>
           sendEmail(env, {
             to: email,
-            subject: "Il tuo link di accesso a Cartina Muta",
+            subject: "Il tuo link di accesso a Campanilismi",
             text: `Tocca per accedere: ${url}`,
           }),
       }),

@@ -16,7 +16,7 @@ const baseEnv: AuthEnv = {
 
 const msg = {
   to: "player@example.com",
-  subject: "Il tuo link di accesso a Cartina Muta",
+  subject: "Il tuo link di accesso a Campanilismi",
   text: "Tocca per accedere: https://cartina-muta/x",
 };
 

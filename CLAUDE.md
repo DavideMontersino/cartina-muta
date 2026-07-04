@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Cartina Muta — a blind-map geography game. Click the named municipality on a map.
+Campanilismi (repo: cartina-muta) — a blind-map geography game. Click the named municipality on a map.
 React 19 + TypeScript + Vite, static SPA deployed to **Cloudflare Pages**.
 
 ## Workflow
