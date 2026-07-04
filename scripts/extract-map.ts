@@ -18,6 +18,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { merge } from "topojson-client";
 import { topology } from "topojson-server";
+import { presimplify, simplify } from "topojson-simplify";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -26,20 +27,38 @@ const DATA_DIR = resolve(MAPS_DIR, "data");
 
 /** Coordinate decimal places for per-province maps. 4 ≈ 11m — plenty. */
 const PRECISION = 4;
-/** Coarser rounding for the zoomed-out national overview. 2 ≈ 1.1km (~1px). */
-const OVERVIEW_PRECISION = 2;
-/** Topology quantization for the overview merge (grid cells across the bbox). */
-const OVERVIEW_QUANTIZATION = 2000;
+/** Coordinate decimal places for the (already simplified) national overview. */
+const OVERVIEW_PRECISION = 4;
+/**
+ * Topology quantization for the overview merge (grid cells across the whole
+ * Italy bbox). Needs to be fine enough that distinct arc vertices along
+ * adjacent municipality borders don't snap to the same grid cell — too
+ * coarse a grid corrupts the shared topology before it's even simplified,
+ * producing self-intersecting rings once dissolved (visible as triangulated
+ * bowties on the picker map).
+ */
+const OVERVIEW_QUANTIZATION = 1e6;
+/**
+ * Visvalingam-Whyatt effective-area threshold (steradians²) for
+ * topojson-simplify. Removing points via topology-aware simplification
+ * *before* merging keeps shared borders consistent across provinces — unlike
+ * naive per-vertex coordinate rounding, which independently perturbs each
+ * ring's points and reliably turns a sweeping dissolved border into a
+ * self-intersecting one. Tuned empirically: small enough that no province
+ * silhouette visibly degrades at the picker's zoomed-out scale, large enough
+ * to keep the file compact.
+ */
+const OVERVIEW_SIMPLIFY_WEIGHT = 1e-5;
 
-type Position = [number, number];
-type Ring = Position[];
-type Polygon = Ring[];
-type MultiPolygon = Polygon[];
-type Geometry =
+export type Position = [number, number];
+export type Ring = Position[];
+export type Polygon = Ring[];
+export type MultiPolygon = Polygon[];
+export type Geometry =
   | { type: "Polygon"; coordinates: Polygon }
   | { type: "MultiPolygon"; coordinates: MultiPolygon };
 
-interface SourceFeature {
+export interface SourceFeature {
   type: "Feature";
   properties: {
     name: string;
@@ -51,7 +70,7 @@ interface SourceFeature {
   geometry: Geometry;
 }
 
-interface SourceCollection {
+export interface SourceCollection {
   type: "FeatureCollection";
   features: SourceFeature[];
 }
@@ -157,15 +176,23 @@ function main() {
   );
 }
 
+interface OverviewFeature {
+  type: "Feature";
+  properties: { id: string; name: string };
+  geometry: Geometry;
+}
+
 /**
  * Merge each province's municipality polygons into a single boundary via a
- * shared topology (so internal borders dissolve cleanly), then write a compact
- * FeatureCollection for the picker map.
+ * shared topology (so internal borders dissolve cleanly), simplifying the
+ * topology first so the merge stays a valid, non-self-intersecting polygon.
+ * Pure (no file I/O) so it's unit-testable; `buildOverview` below writes the
+ * result for the real dataset.
  */
-function buildOverview(
+export function computeOverviewFeatures(
   src: SourceCollection,
   provinceId: (acr: string) => string,
-) {
+): OverviewFeature[] {
   const inputFeatures = src.features.map((f) => ({
     type: "Feature" as const,
     properties: {
@@ -175,12 +202,13 @@ function buildOverview(
     geometry: f.geometry,
   }));
 
-  const topo = topology(
+  let topo = topology(
     // biome-ignore lint/suspicious/noExplicitAny: topojson types don't cover raw FeatureCollection input.
     { munis: { type: "FeatureCollection", features: inputFeatures } as any },
     OVERVIEW_QUANTIZATION,
     // biome-ignore lint/suspicious/noExplicitAny: topojson types are loose here.
   ) as any;
+  topo = simplify(presimplify(topo), OVERVIEW_SIMPLIFY_WEIGHT);
 
   const geoms = topo.objects.munis.geometries as Array<{
     properties: { pid: string; name: string };
@@ -207,9 +235,21 @@ function buildOverview(
     })
     .sort((a, b) => byName(a.properties, b.properties));
 
+  return features;
+}
+
+/** Compute the overview and write it to `src/maps/overview.json`. */
+function buildOverview(
+  src: SourceCollection,
+  provinceId: (acr: string) => string,
+) {
+  const features = computeOverviewFeatures(src, provinceId);
   const overview = { type: "FeatureCollection" as const, features };
   writeFileSync(resolve(MAPS_DIR, "overview.json"), JSON.stringify(overview));
   console.log(`  overview: ${features.length} provinces (${kb(overview)} KB)`);
 }
 
-main();
+// Only run the extraction when executed directly (not when imported by tests).
+if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
+  main();
+}
