@@ -1,6 +1,6 @@
 ---
 name: deliver
-description: "Self-improving delivery pipeline: self-review, local health checks, commit, push, babysit CI & deployment, and post-mortem learning from failures. Use after finishing a feature or fix, before considering work done. Examples: '/deliver'."
+description: "Self-improving delivery pipeline: self-review, local health checks, commit, push, babysit CI & deployment, close the originating GitHub issue once live, and post-mortem learning from failures. Use after finishing a feature or fix, before considering work done — including work started from a GitHub issue. Examples: '/deliver'."
 ---
 
 # Deliver
@@ -88,8 +88,18 @@ npm run build
 1. The Deploy workflow posts/log-reports `**Deploy ✅** <sha> verified live` once the live `<meta name="build-sha">` matches the pushed SHA.
 2. Verify directly: `curl -s "https://cartina-muta.pages.dev?_nocache=$(date +%s)" | grep build-sha` and confirm it matches `git rev-parse --short HEAD`.
 3. Poll every 30 seconds, max 15 minutes (CDN propagation can be slow).
-4. **If deploy passes:** report success. Delivery is complete!
+4. **If deploy passes:** continue to Phase 6.5, then report success. Delivery is complete!
 5. **If deploy fails:** go to **Phase 7 (Post-mortem)**.
+
+### Phase 6.5: Close the originating issue (if applicable)
+
+If this work was picked up from a GitHub issue, close it now that the fix is verified live — don't leave it open for the user to close by hand.
+
+1. Identify the issue number from context: the branch name (e.g. `claude/issue-5-...`), a `Fixes #N` / `Closes #N` / `Resolves #N` reference in the commit message, or explicit issue context earlier in the conversation. If no issue is identifiable, skip this phase silently.
+2. Confirm the issue is still open (`issue_read` → `get`) before touching it — it may already be closed.
+3. Close it with `issue_write` → `update`: `state: closed`, `state_reason: completed`, and append (don't replace) a short note in the body with the fix commit SHA and a one-line root cause + fix summary — enough for someone reading later without re-deriving it.
+4. Only close if CI **and** deploy both passed and the fix is verified live. If the fix is partial or you're unsure it fully addresses the issue, leave it open and say why instead of closing.
+5. If in doubt about whether an issue is really the one this work resolves, ask the user rather than closing the wrong one.
 
 ### Phase 7: Post-mortem — The self-improving loop
 
