@@ -5,6 +5,7 @@ import {
   type GameConfig,
   reducer,
 } from "../game/engine";
+import { pickReaction } from "../game/reactions";
 import { MapCanvas } from "./MapCanvas";
 import { ResultCard } from "./ResultCard";
 
@@ -25,9 +26,13 @@ export function GameScreen({ config, onExit }: GameScreenProps) {
   const [flashIndex, setFlashIndex] = useState<number | null>(null);
   const [wrongIndex, setWrongIndex] = useState<number | null>(null);
   const [revealIndex, setRevealIndex] = useState<number | null>(null);
+  const [reaction, setReaction] = useState<{ id: number; text: string } | null>(
+    null,
+  );
   const flashTimer = useRef<number | undefined>(undefined);
   const wrongTimer = useRef<number | undefined>(undefined);
   const revealTimer = useRef<number | undefined>(undefined);
+  const reactionTimer = useRef<number | undefined>(undefined);
 
   const total = config.map.features.length;
   const target = currentTarget(state);
@@ -53,11 +58,27 @@ export function GameScreen({ config, onExit }: GameScreenProps) {
     wrongTimer.current = window.setTimeout(() => setWrongIndex(null), 1300);
   }, [state.feedback]);
 
+  // On every guess: surface a funny local reaction (curse/praise), with
+  // dialect flavour when the province has one and streak-aware milestones.
+  useEffect(() => {
+    if (!state.feedback) return;
+    const text = pickReaction(
+      config.map.id,
+      state.feedback.correct,
+      state.correctStreak,
+      state.wrongStreak,
+    );
+    setReaction({ id: state.feedback.id, text });
+    window.clearTimeout(reactionTimer.current);
+    reactionTimer.current = window.setTimeout(() => setReaction(null), 2200);
+  }, [state.feedback, state.correctStreak, state.wrongStreak, config.map.id]);
+
   useEffect(
     () => () => {
       window.clearTimeout(flashTimer.current);
       window.clearTimeout(wrongTimer.current);
       window.clearTimeout(revealTimer.current);
+      window.clearTimeout(reactionTimer.current);
     },
     [],
   );
@@ -117,6 +138,14 @@ export function GameScreen({ config, onExit }: GameScreenProps) {
       )}
 
       <div className="map-wrap">
+        {reaction && (
+          <div
+            key={reaction.id}
+            className={`reaction-toast ${state.feedback?.correct ? "reaction-toast--correct" : "reaction-toast--wrong"}`}
+          >
+            {reaction.text}
+          </div>
+        )}
         <MapCanvas
           map={config.map}
           status={state.status}

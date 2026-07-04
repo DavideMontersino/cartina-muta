@@ -29,6 +29,10 @@ export interface GameState {
   found: number;
   missed: number;
   mistakes: number;
+  /** Consecutive correct guesses right now (resets to 0 on a wrong guess). */
+  correctStreak: number;
+  /** Consecutive wrong guesses right now (resets to 0 on a correct guess). */
+  wrongStreak: number;
   /** Seconds remaining in timer mode; unused (Infinity) in complete mode. */
   timeLeft: number;
   /** Whole seconds elapsed since start. */
@@ -67,6 +71,8 @@ export function createGame(
     found: 0,
     missed: 0,
     mistakes: 0,
+    correctStreak: 0,
+    wrongStreak: 0,
     timeLeft:
       config.mode.kind === "timer"
         ? config.mode.durationSeconds
@@ -114,12 +120,16 @@ export function reducer(state: GameState, action: GameAction): GameState {
           ...state,
           status,
           found: state.found + 1,
+          correctStreak: state.correctStreak + 1,
+          wrongStreak: 0,
           feedback: { id: nextFeedbackId, index: action.index, correct: true },
         });
       }
       return {
         ...state,
         mistakes: state.mistakes + 1,
+        correctStreak: 0,
+        wrongStreak: state.wrongStreak + 1,
         feedback: { id: nextFeedbackId, index: action.index, correct: false },
       };
     }

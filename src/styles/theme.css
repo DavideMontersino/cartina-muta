@@ -269,12 +269,54 @@ button {
 }
 
 .map-wrap {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.6rem;
+}
+.reaction-toast {
+  position: absolute;
+  top: 0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  max-width: min(90%, 32rem);
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  background: var(--paper);
+  border: 1px solid var(--paper-edge);
+  box-shadow: var(--shadow);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(0.9rem, 2.6vw, 1.05rem);
+  text-align: center;
+  pointer-events: none;
+  animation: reaction-toast-fade 2.2s ease forwards;
+}
+.reaction-toast--correct {
+  color: var(--olive-deep);
+}
+.reaction-toast--wrong {
+  color: var(--terracotta);
+}
+@keyframes reaction-toast-fade {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px);
+  }
+  10% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 .map-canvas {
   width: 100%;
