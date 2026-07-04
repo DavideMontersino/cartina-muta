@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { GameConfig, GameMode } from "../game/engine";
 import { MAPS } from "../maps/registry";
 import type { MapDefinition } from "../maps/types";
+import { AuthIndicator } from "./AuthIndicator";
 
 interface HomeScreenProps {
   onStart: (config: GameConfig) => void;
@@ -20,6 +21,7 @@ export function HomeScreen({ onStart }: HomeScreenProps) {
 
   return (
     <div className="home">
+      <AuthIndicator />
       <div className="home__inner">
         <header className="home__head">
           <p className="home__eyebrow">Cartina Muta</p>

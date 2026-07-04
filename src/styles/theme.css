@@ -109,6 +109,7 @@ button {
 
 /* ---------- Home ---------- */
 .home {
+  position: relative;
   min-height: 100%;
   display: grid;
   place-items: center;
@@ -443,4 +444,78 @@ button {
   color: var(--ink-soft);
   text-transform: uppercase;
   letter-spacing: 0.1em;
+}
+
+/* ---------- Sign-in (leaderboard) ---------- */
+.signin {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1.1rem 0 0.4rem;
+  margin-top: 0.4rem;
+  border-top: 1px solid var(--paper-edge);
+}
+.signin__hint {
+  margin: 0 0 0.15rem;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+.signin--done {
+  align-items: center;
+  text-align: center;
+}
+.signin__input {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--paper-edge);
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+  width: 100%;
+}
+.signin__input:focus {
+  outline: none;
+  border-color: var(--terracotta);
+  box-shadow: 0 0 0 3px rgba(191, 90, 60, 0.15);
+}
+.signin__input::placeholder {
+  color: var(--ink-soft);
+  opacity: 0.7;
+}
+.signin__error {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--terracotta);
+}
+.result-card__again {
+  margin-top: 0.9rem;
+}
+
+/* ---------- Auth indicator (home) ---------- */
+.auth-indicator {
+  position: absolute;
+  top: 1rem;
+  right: 1.15rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+.auth-indicator__name {
+  font-weight: 500;
+  color: var(--ink);
+}
+.auth-indicator__signout {
+  border: 1px solid var(--paper-edge);
+  background: var(--paper-2);
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.8rem;
+}
+.auth-indicator__signout:hover {
+  color: var(--ink);
+  border-color: var(--ink-soft);
 }

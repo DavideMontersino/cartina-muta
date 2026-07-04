@@ -1,4 +1,5 @@
 import type { GameState } from "../game/engine";
+import { SignInCard } from "./SignInCard";
 
 interface ResultCardProps {
   state: GameState;
@@ -48,7 +49,12 @@ export function ResultCard({ state, onExit }: ResultCardProps) {
             <span className="result-stat__label">tempo</span>
           </div>
         </div>
-        <button type="button" className="btn btn--primary" onClick={onExit}>
+        <SignInCard />
+        <button
+          type="button"
+          className="btn btn--ghost result-card__again"
+          onClick={onExit}
+        >
           Gioca ancora
         </button>
       </div>
