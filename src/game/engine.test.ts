@@ -80,6 +80,36 @@ describe("reducer — complete mode", () => {
     expect(secondId).not.toBe(firstId);
   });
 
+  it("tracks a correct-guess streak and resets it on a wrong guess", () => {
+    let s = createGame(startComplete(3), noShuffleRng);
+    s = reducer(s, { type: "guess", index: currentTarget(s) as number });
+    expect(s.correctStreak).toBe(1);
+    expect(s.wrongStreak).toBe(0);
+    s = reducer(s, { type: "guess", index: currentTarget(s) as number });
+    expect(s.correctStreak).toBe(2);
+
+    const target = currentTarget(s) as number;
+    const wrong = target === 2 ? 1 : 2;
+    s = reducer(s, { type: "guess", index: wrong });
+    expect(s.correctStreak).toBe(0);
+    expect(s.wrongStreak).toBe(1);
+  });
+
+  it("tracks a wrong-guess streak and resets it on a correct guess", () => {
+    let s = createGame(startComplete(3), noShuffleRng);
+    const target = currentTarget(s) as number;
+    const wrong = target === 2 ? 1 : 2;
+
+    s = reducer(s, { type: "guess", index: wrong });
+    expect(s.wrongStreak).toBe(1);
+    s = reducer(s, { type: "guess", index: wrong });
+    expect(s.wrongStreak).toBe(2);
+
+    s = reducer(s, { type: "guess", index: target });
+    expect(s.wrongStreak).toBe(0);
+    expect(s.correctStreak).toBe(1);
+  });
+
   it("skip marks the target missed and advances", () => {
     let s = createGame(startComplete(3), noShuffleRng);
     const target = currentTarget(s) as number;
