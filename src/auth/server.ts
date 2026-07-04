@@ -19,7 +19,14 @@ export function createAuth(env: AuthEnv) {
     database: env.DB,
     secret: env.BETTER_AUTH_SECRET,
     baseURL: env.BETTER_AUTH_URL,
-    trustedOrigins: [env.BETTER_AUTH_URL],
+    // The app is reachable at both the Cloudflare Pages subdomain and the
+    // custom domain; trust the callbackURL from either one (plus whatever
+    // BETTER_AUTH_URL is set to, e.g. localhost in dev).
+    trustedOrigins: [
+      env.BETTER_AUTH_URL,
+      "https://cartina-muta.pages.dev",
+      "https://cartina-muta.davidemontersino.com",
+    ],
     emailAndPassword: {
       enabled: true,
       // Start lenient: a player can sign in and play immediately. Revisit
