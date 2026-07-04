@@ -61,6 +61,25 @@ describe("reducer — complete mode", () => {
     expect(s.feedback?.correct).toBe(false);
   });
 
+  it("assigns a strictly increasing feedback id to consecutive wrong guesses", () => {
+    // The UI keys the "wrong guess" label on feedback.id to force it to
+    // remount (and its fade animation to restart) on every wrong guess,
+    // even repeated ones in quick succession. That only works if this id
+    // keeps changing.
+    let s = createGame(startComplete(3), noShuffleRng);
+    const target = currentTarget(s) as number;
+    const wrong = target === 2 ? 1 : 2;
+
+    s = reducer(s, { type: "guess", index: wrong });
+    const firstId = s.feedback?.id;
+    s = reducer(s, { type: "guess", index: wrong });
+    const secondId = s.feedback?.id;
+
+    expect(firstId).toBeDefined();
+    expect(secondId).toBeDefined();
+    expect(secondId).not.toBe(firstId);
+  });
+
   it("skip marks the target missed and advances", () => {
     let s = createGame(startComplete(3), noShuffleRng);
     const target = currentTarget(s) as number;

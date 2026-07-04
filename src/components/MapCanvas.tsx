@@ -10,6 +10,9 @@ interface MapCanvasProps {
   flashIndex: number | null;
   /** Index whose name to reveal briefly after a wrong guess, or null. */
   wrongIndex: number | null;
+  /** Changes on every wrong guess so the label remounts and its fade
+   * animation restarts, even for repeated rapid-fire wrong guesses. */
+  wrongKey: number;
   /** Index to briefly reveal after a skip, or null. */
   revealIndex: number | null;
   onPick: (index: number) => void;
@@ -21,6 +24,7 @@ export function MapCanvas({
   status,
   flashIndex,
   wrongIndex,
+  wrongKey,
   revealIndex,
   onPick,
   interactive,
@@ -80,6 +84,7 @@ export function MapCanvas({
       </g>
       {wrongIndex !== null && (
         <text
+          key={wrongKey}
           x={shapes[wrongIndex].cx}
           y={shapes[wrongIndex].cy}
           className="wrong-label"

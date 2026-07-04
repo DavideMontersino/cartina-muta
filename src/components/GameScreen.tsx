@@ -24,6 +24,7 @@ export function GameScreen({ config, onExit }: GameScreenProps) {
   const [state, dispatch] = useReducer(reducer, config, (c) => createGame(c));
   const [flashIndex, setFlashIndex] = useState<number | null>(null);
   const [wrongIndex, setWrongIndex] = useState<number | null>(null);
+  const [wrongKey, setWrongKey] = useState(0);
   const [revealIndex, setRevealIndex] = useState<number | null>(null);
   const flashTimer = useRef<number | undefined>(undefined);
   const wrongTimer = useRef<number | undefined>(undefined);
@@ -44,9 +45,10 @@ export function GameScreen({ config, onExit }: GameScreenProps) {
   // little longer so the player can read what they actually clicked.
   useEffect(() => {
     if (!state.feedback || state.feedback.correct) return;
-    const { index } = state.feedback;
+    const { index, id } = state.feedback;
     setFlashIndex(index);
     setWrongIndex(index);
+    setWrongKey(id);
     window.clearTimeout(flashTimer.current);
     window.clearTimeout(wrongTimer.current);
     flashTimer.current = window.setTimeout(() => setFlashIndex(null), 550);
@@ -122,6 +124,7 @@ export function GameScreen({ config, onExit }: GameScreenProps) {
           status={state.status}
           flashIndex={flashIndex}
           wrongIndex={wrongIndex}
+          wrongKey={wrongKey}
           revealIndex={revealIndex}
           onPick={handlePick}
           interactive={playing}
