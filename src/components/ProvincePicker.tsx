@@ -1,7 +1,8 @@
 import { geoIdentity, geoPath } from "d3-geo";
 import type { Feature, Geometry, Position } from "geojson";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import type { OverviewCollection } from "../maps/types";
+import { usePanZoom } from "./usePanZoom";
 
 const W = 620;
 const H = 720;
@@ -76,26 +77,45 @@ export function ProvincePicker({
     }));
   }, [overview]);
 
+  const handleTap = useCallback(
+    (index: number) => {
+      const shape = shapes[index];
+      if (shape) onSelect(shape.id);
+    },
+    [shapes, onSelect],
+  );
+
+  const { svgRef, transformAttr, style, handlers } = usePanZoom({
+    enabled: true,
+    centerX: W / 2,
+    centerY: H / 2,
+    onTap: handleTap,
+  });
+
   return (
     <svg
+      ref={svgRef}
       className="picker"
       viewBox={`0 0 ${W} ${H}`}
       role="img"
       aria-label="Mappa delle province italiane"
       preserveAspectRatio="xMidYMid meet"
+      style={style}
+      {...handlers}
     >
       <title>Mappa delle province italiane</title>
-      {shapes.map((s) => (
-        // biome-ignore lint/a11y/noStaticElementInteractions: SVG province shapes are pointer-picked; the searchable list is the keyboard-accessible path.
-        <path
-          key={s.id}
-          d={s.d}
-          className={`picker__prov ${s.id === selectedId ? "picker__prov--active" : ""}`}
-          onClick={() => onSelect(s.id)}
-        >
-          <title>{s.name}</title>
-        </path>
-      ))}
+      <g transform={transformAttr}>
+        {shapes.map((s, i) => (
+          <path
+            key={s.id}
+            data-index={i}
+            d={s.d}
+            className={`picker__prov ${s.id === selectedId ? "picker__prov--active" : ""}`}
+          >
+            <title>{s.name}</title>
+          </path>
+        ))}
+      </g>
     </svg>
   );
 }
