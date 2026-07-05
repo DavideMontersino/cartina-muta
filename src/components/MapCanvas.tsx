@@ -46,14 +46,12 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
     const shapes = projected.features;
     const [hover, setHover] = useState<number | null>(null);
 
-    const { svgRef, transformCss, style, handlers, setTransform } = usePanZoom(
-      {
-        enabled: panZoom && interactive && !isAnimating,
-        centerX: CENTER_X,
-        centerY: CENTER_Y,
-        onTap: onPick,
-      },
-    );
+    const { svgRef, transformCss, style, handlers, setTransform } = usePanZoom({
+      enabled: panZoom && interactive && !isAnimating,
+      centerX: CENTER_X,
+      centerY: CENTER_Y,
+      onTap: onPick,
+    });
 
     useImperativeHandle(ref, () => ({
       flyTo: (cx: number, cy: number, scale: number) => {
@@ -80,7 +78,13 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
         {...handlers}
       >
         <title>{map.name}</title>
-        <g style={panZoom ? { transform: transformCss, transformOrigin: '0 0' } : undefined}>
+        <g
+          style={
+            panZoom
+              ? { transform: transformCss, transformOrigin: "0 0" }
+              : undefined
+          }
+        >
           <g>
             {shapes.map((s, i) => {
               const st = status[i];
