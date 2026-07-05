@@ -1100,7 +1100,7 @@ button {
 }
 .picker {
   width: 100%;
-  max-width: 420px;
+  max-width: none;
   height: auto;
   filter: drop-shadow(0 8px 20px rgba(59, 51, 39, 0.14));
 }
