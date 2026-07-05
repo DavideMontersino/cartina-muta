@@ -19,6 +19,7 @@ import type {
   ActionLogEntry,
   ScoreSubmissionPayload,
 } from "../leaderboard/types";
+import { ConfirmExitDialog } from "./ConfirmExitDialog";
 import { HamburgerMenu } from "./HamburgerMenu";
 import { MapCanvas } from "./MapCanvas";
 import { ResultCard } from "./ResultCard";
@@ -71,10 +72,18 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   const startRef = useRef(performance.now());
   const logRef = useRef<ActionLogEntry[]>([]);
   const [finalElapsedMs, setFinalElapsedMs] = useState<number | null>(null);
+  const [confirmExit, setConfirmExit] = useState(false);
 
   const total = config.map.features.length;
   const target = currentTarget(state);
   const playing = state.phase === "playing";
+
+  // Interrupting an active game always asks for confirmation; once it's
+  // already finished there's nothing left to interrupt.
+  const requestExit = useCallback(() => {
+    if (playing) setConfirmExit(true);
+    else onExit();
+  }, [playing, onExit]);
 
   // Capture the precise elapsed time the instant the game finishes, not
   // whenever a submission eventually happens — otherwise time spent reading
@@ -114,11 +123,12 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   ]);
 
   // Tick once per second while playing (drives the timer/energy drain and elapsed clock).
+  // Paused while the exit confirmation is up, so deciding doesn't cost time/energy.
   useEffect(() => {
-    if (!playing) return;
+    if (!playing || confirmExit) return;
     const id = window.setInterval(() => dispatch({ type: "tick" }), 1000);
     return () => window.clearInterval(id);
-  }, [playing]);
+  }, [playing, confirmExit]);
 
   // On a wrong region-index guess (timer/complete modes): flash the region
   // red briefly on the map, and surface its name in a fixed overlay (lower
@@ -333,7 +343,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
           <button
             type="button"
             className="btn btn--ghost hud__menu"
-            onClick={onExit}
+            onClick={requestExit}
           >
             ← Menu
           </button>
@@ -383,6 +393,13 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
             onExit={onExit}
           />
         )}
+
+        {confirmExit && (
+          <ConfirmExitDialog
+            onConfirm={onExit}
+            onCancel={() => setConfirmExit(false)}
+          />
+        )}
       </div>
     );
   }
@@ -391,7 +408,11 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
     <div className="game">
       <header className="hud">
         <div className="hud__left">
-          <button type="button" className="btn btn--ghost" onClick={onExit}>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={requestExit}
+          >
             ← Menu
           </button>
           <HamburgerMenu
@@ -471,6 +492,13 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
           provinceName={config.map.name}
           onRestart={onExit}
           onExit={onExit}
+        />
+      )}
+
+      {confirmExit && (
+        <ConfirmExitDialog
+          onConfirm={onExit}
+          onCancel={() => setConfirmExit(false)}
         />
       )}
     </div>
