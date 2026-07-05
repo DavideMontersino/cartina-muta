@@ -279,6 +279,10 @@ describe("reducer — energy mode", () => {
     expect(s.feedback?.correct).toBe(false);
     // The wrongly-tapped comune is reported so the UI can flash it red.
     expect(s.feedback?.index).toBe(wrong);
+    // Distance/direction come from the two saved centroids (fake map centroids
+    // sit at [i*10, 0], so the wrong comune is a real distance east/west away).
+    expect(s.feedback?.distanceKm).toBeGreaterThan(0);
+    expect(s.feedback?.bearingDeg).toBeGreaterThanOrEqual(0);
   });
 
   it("reveals and advances after the 3rd miss, without a full skip penalty", () => {

@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { compassArrow } from "../game/distance";
 import {
   createGame,
   currentTarget,
@@ -298,9 +299,18 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
                   )}
                 </>
               ) : (
-                <span className="energy-toast__miss">
-                  {energyToast.reaction}
-                </span>
+                <>
+                  <span className="energy-toast__miss">
+                    {energyToast.reaction}
+                  </span>
+                  {state.feedback?.distanceKm !== undefined &&
+                    state.feedback.bearingDeg !== undefined && (
+                      <span className="energy-toast__hint">
+                        {Math.round(state.feedback.distanceKm)} km{" "}
+                        {compassArrow(state.feedback.bearingDeg)}
+                      </span>
+                    )}
+                </>
               )}
             </div>
           )}

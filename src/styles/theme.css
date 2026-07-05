@@ -577,6 +577,7 @@ button {
   transform: translate(-50%, -50%);
   z-index: 6;
   text-align: center;
+  max-width: min(20rem, 78vw);
   padding: 0.7rem 1.4rem;
   border-radius: 16px;
   background: var(--paper);
@@ -610,7 +611,15 @@ button {
   display: block;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 1.6rem;
+  font-size: 1.4rem;
+}
+.energy-toast__hint {
+  display: block;
+  margin-top: 0.25rem;
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.02em;
 }
 
 /* ---------- Result overlay ---------- */

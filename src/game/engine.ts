@@ -1,4 +1,5 @@
 import type { MapDefinition } from "../maps/types";
+import { bearingDegrees, haversineKm } from "./distance";
 
 export type GameMode =
   | { kind: "timer"; durationSeconds: number }
@@ -18,6 +19,13 @@ export interface Feedback {
   /** The clicked region, or null when a guess auto-resolves the round (3rd miss). */
   index: number | null;
   correct: boolean;
+  /**
+   * How far/which way the target is from the comune the player tapped — set on
+   * an energy-mode miss. Derived from the two saved centroids ([lon, lat]), so
+   * it never depends on the rendered map or any screen transform.
+   */
+  distanceKm?: number;
+  bearingDeg?: number;
 }
 
 /** Itemized score components for the last correct energy-mode guess. */
@@ -270,10 +278,16 @@ function energyGuess(
     0,
     ENERGY_CONFIG.max,
   );
+  // Distance/direction from the comune the player tapped to the target — pure
+  // geography off the saved centroids, no rendered-map coordinates involved.
+  const from = state.map.features[action.index].centroid;
+  const to = state.map.features[target].centroid;
   const feedback: Feedback = {
     id: nextFeedbackId,
     index: action.index,
     correct: false,
+    distanceKm: haversineKm(from, to),
+    bearingDeg: bearingDegrees(from, to),
   };
 
   if (energy <= 0) {
