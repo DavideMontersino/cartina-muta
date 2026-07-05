@@ -176,6 +176,7 @@ export function usePanZoom({
   return {
     svgRef,
     transform,
+    setTransform,
     transformAttr,
     style,
     handlers: {

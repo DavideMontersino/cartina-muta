@@ -452,6 +452,10 @@ button {
   min-height: 0;
   touch-action: manipulation;
 }
+.map-canvas--animating > g {
+  transition: transform 0.6s ease-in-out;
+}
+
 
 /* Regions */
 .region {

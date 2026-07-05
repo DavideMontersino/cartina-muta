@@ -14,6 +14,7 @@ import {
   type GameConfig,
   reducer,
 } from "../game/engine";
+import { projectMap } from "../game/geo";
 import { pickReaction } from "../game/reactions";
 import type {
   ActionLogEntry,
@@ -21,7 +22,7 @@ import type {
 } from "../leaderboard/types";
 import { ConfirmExitDialog } from "./ConfirmExitDialog";
 import { HamburgerMenu } from "./HamburgerMenu";
-import { MapCanvas } from "./MapCanvas";
+import { MapCanvas, type MapCanvasRef } from "./MapCanvas";
 import { ResultCard } from "./ResultCard";
 
 interface GameScreenProps {
@@ -40,6 +41,9 @@ function formatClock(totalSeconds: number): string {
 export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   const isEnergy = config.mode.kind === "energy";
   const [state, dispatch] = useReducer(reducer, config, (c) => createGame(c));
+  const [isAnimating, setIsAnimating] = useState(false);
+  const mapRef = useRef<MapCanvasRef>(null);
+  const projected = useMemo(() => projectMap(config.map), [config.map]);
   const [flashIndex, setFlashIndex] = useState<number | null>(null);
   const [wrongIndex, setWrongIndex] = useState<number | null>(null);
   const [wrongKey, setWrongKey] = useState(0);
@@ -125,10 +129,10 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   // Tick once per second while playing (drives the timer/energy drain and elapsed clock).
   // Paused while the exit confirmation is up, so deciding doesn't cost time/energy.
   useEffect(() => {
-    if (!playing || confirmExit) return;
+    if (!playing || confirmExit || isAnimating) return;
     const id = window.setInterval(() => dispatch({ type: "tick" }), 1000);
     return () => window.clearInterval(id);
-  }, [playing, confirmExit]);
+  }, [playing, confirmExit, isAnimating]);
 
   // On a wrong region-index guess (timer/complete modes): flash the region
   // red briefly on the map, and surface its name in a fixed overlay (lower
@@ -138,6 +142,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   useEffect(() => {
     if (!state.feedback) return;
     if (state.feedback.correct) {
+      mapRef.current?.resetZoom();
       window.clearTimeout(flashTimer.current);
       window.clearTimeout(wrongTimer.current);
       setFlashIndex(null);
@@ -163,10 +168,33 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
     const missedTarget = pendingEnergyTargetRef.current;
     if (missedTarget === null || state.status[missedTarget] !== "missed")
       return;
-    setRevealIndex(missedTarget);
-    window.clearTimeout(revealTimer.current);
-    revealTimer.current = window.setTimeout(() => setRevealIndex(null), 1100);
-  }, [isEnergy, state.feedback, state.status]);
+    
+    let active = true;
+    const runAnimation = async () => {
+      setIsAnimating(true);
+      const feat = projected.features[missedTarget];
+      mapRef.current?.resetZoom();
+      await new Promise(r => setTimeout(r, 600));
+      if (!active) return;
+      mapRef.current?.flyTo(feat.cx, feat.cy, 3);
+      await new Promise(r => setTimeout(r, 600));
+      if (!active) return;
+      setRevealIndex(missedTarget);
+      await new Promise(r => setTimeout(r, 1100));
+      if (!active) return;
+      setRevealIndex(null);
+      mapRef.current?.resetZoom();
+      await new Promise(r => setTimeout(r, 600));
+      if (!active) return;
+      setIsAnimating(false);
+    };
+    runAnimation();
+
+    return () => {
+      active = false;
+      setIsAnimating(false);
+    };
+  }, [isEnergy, state.feedback, state.status, projected.features]);
 
   // On every guess: surface a funny local reaction (curse/praise), with
   // dialect flavour when the province has one and streak-aware milestones.
@@ -232,7 +260,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   );
 
   const handleSkip = useCallback(() => {
-    if (target === null) return;
+    if (target === null || isAnimating) return;
     // Keep in sync with the energy-mode auto-reveal effect below, which
     // otherwise re-fires on this dispatch's status change and can
     // overwrite this reveal with a stale target from an earlier miss.
@@ -242,11 +270,25 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
       type: "skip",
       targetIstat: config.map.features[target].istat,
     });
-    setRevealIndex(target);
-    window.clearTimeout(revealTimer.current);
-    revealTimer.current = window.setTimeout(() => setRevealIndex(null), 1100);
-    dispatch({ type: "skip" });
-  }, [target, config.map.features]);
+    
+    const runAnimation = async () => {
+      setIsAnimating(true);
+      const feat = projected.features[target];
+      mapRef.current?.resetZoom();
+      await new Promise(r => setTimeout(r, 600));
+      mapRef.current?.flyTo(feat.cx, feat.cy, 3);
+      await new Promise(r => setTimeout(r, 600));
+      setRevealIndex(target);
+      await new Promise(r => setTimeout(r, 1100));
+      setRevealIndex(null);
+      mapRef.current?.resetZoom();
+      await new Promise(r => setTimeout(r, 600));
+      setIsAnimating(false);
+      dispatch({ type: "skip" });
+    };
+    
+    runAnimation();
+  }, [target, config.map.features, isAnimating, projected.features]);
 
   const handlePick = useCallback(
     (index: number) => {
@@ -279,6 +321,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
       <div className="game game--energy">
         <div className="map-wrap map-wrap--full">
           <MapCanvas
+            ref={mapRef}
             map={config.map}
             status={state.status}
             flashIndex={flashIndex}
@@ -286,6 +329,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
             onPick={handlePick}
             panZoom
             interactive={playing}
+            isAnimating={isAnimating}
           />
           {wrongIndex !== null && (
             <div key={wrongKey} className="wrong-name-toast">
@@ -366,7 +410,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
               <span className="stat__label">punti</span>
             </div>
           </div>
-          {playing && target !== null && (
+          {playing && target !== null && !isAnimating && (
             <div className="prompt prompt--overlay">
               <span className="prompt__cue">Trova</span>
               <h2 className="prompt__name">
@@ -443,7 +487,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
         </div>
       </header>
 
-      {playing && target !== null && (
+      {playing && target !== null && !isAnimating && (
         <div className="prompt">
           <span className="prompt__cue">Trova</span>
           <h2 className="prompt__name">{config.map.features[target].name}</h2>
@@ -463,6 +507,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
           </div>
         )}
         <MapCanvas
+          ref={mapRef}
           map={config.map}
           status={state.status}
           flashIndex={flashIndex}
@@ -470,6 +515,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
           onPick={handlePick}
           panZoom
           interactive={playing}
+          isAnimating={isAnimating}
         />
         {wrongIndex !== null && (
           <div key={wrongKey} className="wrong-name-toast">

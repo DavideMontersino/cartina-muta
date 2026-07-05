@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
 import type { RegionStatus } from "../game/engine";
 import { projectMap, VIEW_H, VIEW_W } from "../game/geo";
 import type { MapDefinition } from "../maps/types";
@@ -16,13 +16,19 @@ interface MapCanvasProps {
   /** Enables drag-to-pan and pinch/wheel-to-zoom. */
   panZoom?: boolean;
   interactive: boolean;
+  isAnimating?: boolean;
+}
+
+export interface MapCanvasRef {
+  flyTo: (cx: number, cy: number, scale: number) => void;
+  resetZoom: () => void;
 }
 
 /** viewBox centre — pan/zoom scale about this so zooming keeps the map centred. */
 const CENTER_X = VIEW_W / 2;
 const CENTER_Y = VIEW_H / 2;
 
-export function MapCanvas({
+export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(({
   map,
   status,
   flashIndex,
@@ -30,22 +36,36 @@ export function MapCanvas({
   onPick,
   panZoom = false,
   interactive,
-}: MapCanvasProps) {
+  isAnimating = false,
+}, ref) => {
   const projected = useMemo(() => projectMap(map), [map]);
   const shapes = projected.features;
   const [hover, setHover] = useState<number | null>(null);
 
-  const { svgRef, transformAttr, style, handlers } = usePanZoom({
-    enabled: panZoom && interactive,
+  const { svgRef, transformAttr, style, handlers, setTransform } = usePanZoom({
+    enabled: panZoom && interactive && !isAnimating,
     centerX: CENTER_X,
     centerY: CENTER_Y,
     onTap: onPick,
   });
 
+  useImperativeHandle(ref, () => ({
+    flyTo: (cx: number, cy: number, scale: number) => {
+      setTransform({
+        x: -scale * (cx - CENTER_X),
+        y: -scale * (cy - CENTER_Y),
+        scale,
+      });
+    },
+    resetZoom: () => {
+      setTransform({ x: 0, y: 0, scale: 1 });
+    },
+  }));
+
   return (
     <svg
       ref={svgRef}
-      className="map-canvas"
+      className={`map-canvas ${isAnimating ? "map-canvas--animating" : ""}`}
       viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
       role="img"
       aria-label={map.name}
@@ -104,4 +124,4 @@ export function MapCanvas({
       </g>
     </svg>
   );
-}
+});
