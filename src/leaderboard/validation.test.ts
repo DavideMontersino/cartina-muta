@@ -105,16 +105,16 @@ describe("validateScoreSubmission — energy mode", () => {
       actionLog: [
         {
           tMs: 812,
-          type: "guessPoint",
+          type: "guess",
           targetIstat: "004078",
-          point: [7.55, 44.38],
+          guessIstat: "004078",
           correct: true,
         },
         {
           tMs: 1500,
-          type: "guessPoint",
+          type: "guess",
           targetIstat: "004050",
-          point: [7.6, 44.4],
+          guessIstat: "004078",
           correct: false,
         },
         { tMs: 4200, type: "skip", targetIstat: "004050" },
@@ -123,7 +123,7 @@ describe("validateScoreSubmission — energy mode", () => {
     });
   }
 
-  it("accepts a well-formed energy submission with a score and guessPoint entries", () => {
+  it("accepts a well-formed energy submission with a score and guess entries", () => {
     const result = validateScoreSubmission(energyPayload());
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -146,16 +146,15 @@ describe("validateScoreSubmission — energy mode", () => {
     );
   });
 
-  it("rejects a guessPoint entry with a malformed point", () => {
+  it("rejects a guess entry missing its guessIstat", () => {
     expect(
       validateScoreSubmission(
         energyPayload({
           actionLog: [
             {
               tMs: 100,
-              type: "guessPoint",
+              type: "guess",
               targetIstat: "004078",
-              point: [7.55],
               correct: true,
             },
           ],

@@ -3,13 +3,11 @@ import type { GameMode } from "../game/engine";
 /** One recorded player action, timestamped relative to game start (ms). */
 export interface ActionLogEntry {
   tMs: number;
-  type: "guess" | "guessPoint" | "skip";
+  type: "guess" | "skip";
   /** ISTAT code of the region the player was asked to find. */
   targetIstat: string;
   /** Only present for "guess": the region the player actually clicked. */
   guessIstat?: string;
-  /** Only present for "guessPoint" (energy mode's free-form clicks): [lon, lat]. */
-  point?: [number, number];
   correct?: boolean;
 }
 

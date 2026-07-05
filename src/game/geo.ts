@@ -15,8 +15,6 @@ export interface ProjectedFeature {
 
 export interface ProjectedMap {
   features: ProjectedFeature[];
-  /** Converts a point in the fixed viewBox coordinate space to [lon, lat], or null if outside the projection's invertible range. */
-  invert: (point: [number, number]) => [number, number] | null;
 }
 
 /**
@@ -54,8 +52,5 @@ export function projectMap(map: MapDefinition, padding = 24): ProjectedMap {
     return { d: path(feature) ?? "", cx, cy };
   });
 
-  return {
-    features,
-    invert: (point) => projection.invert?.(point) ?? null,
-  };
+  return { features };
 }

@@ -176,20 +176,6 @@ function validateActionLog(
         guessIstat: e.guessIstat,
         correct: e.correct,
       });
-    } else if (
-      e.type === "guessPoint" &&
-      Array.isArray(e.point) &&
-      e.point.length === 2 &&
-      e.point.every((n) => typeof n === "number" && Number.isFinite(n)) &&
-      typeof e.correct === "boolean"
-    ) {
-      entries.push({
-        tMs: e.tMs,
-        type: "guessPoint",
-        targetIstat: e.targetIstat,
-        point: e.point as [number, number],
-        correct: e.correct,
-      });
     } else {
       return { ok: false, error: "Invalid actionLog action." };
     }

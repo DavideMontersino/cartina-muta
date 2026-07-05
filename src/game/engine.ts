@@ -1,10 +1,4 @@
 import type { MapDefinition } from "../maps/types";
-import {
-  bearingDegrees,
-  haversineKm,
-  type LonLat,
-  pointInGeometry,
-} from "./distance";
 
 export type GameMode =
   | { kind: "timer"; durationSeconds: number }
@@ -21,18 +15,14 @@ export interface GameConfig {
 export interface Feedback {
   /** Increments on every guess so the UI can react to repeat guesses. */
   id: number;
-  /** The clicked region, or null for energy mode's free-form point guesses. */
+  /** The clicked region, or null when a guess auto-resolves the round (3rd miss). */
   index: number | null;
   correct: boolean;
-  /** Distance/bearing to the target — energy mode only, set on a miss. */
-  distanceKm?: number;
-  bearingDeg?: number;
 }
 
 /** Itemized score components for the last correct energy-mode guess. */
 export interface ScoreBreakdown {
   base: number;
-  distanceFactor: number;
   streakMultiplier: number;
   speedBonus: number;
   firstTryBonus: number;
@@ -71,8 +61,7 @@ export interface GameState {
 }
 
 export type GameAction =
-  | { type: "guess"; index: number }
-  | { type: "guessPoint"; point: LonLat; roundElapsedMs: number }
+  | { type: "guess"; index: number; roundElapsedMs?: number }
   | { type: "skip" }
   | { type: "tick" }
   | { type: "finish" };
@@ -89,9 +78,13 @@ export const ENERGY_CONFIG = {
   maxAttempts: 3,
   /** Base score per attempt number (1st/2nd/3rd try). */
   attemptBase: [100, 60, 30],
-  /** Distance (km) from the target centroid beyond which distanceFactor bottoms out. */
-  distanceFactorReferenceKm: 20,
-  distanceFactorFloor: 0.5,
+  /**
+   * Presentation-order weighting. A higher alphaStart front-loads big/famous
+   * comuni (Cuneo, Alba, Saluzzo…) so a run opens on names people know; alpha
+   * decays to 0 (uniform) by ~depth alphaStart/alphaDecay, so the long tail of
+   * tiny comuni still shows up deeper in.
+   */
+  sampling: { alphaStart: 2, alphaDecay: 0.04 },
   streak: { doubleAt: 3, tripleAt: 6 },
   speedBonusThresholdMs: 3000,
   speedBonus: 50,
@@ -166,6 +159,7 @@ export function createGame(
       ? weightedShuffle(
           config.map.features.map((f) => f.population),
           rng,
+          ENERGY_CONFIG.sampling,
         )
       : shuffle(n, rng),
     cursor: 0,
@@ -210,6 +204,115 @@ function advance(state: GameState): GameState {
   return { ...state, cursor };
 }
 
+/**
+ * Energy-mode resolution of a region tap. Correctness is decided by which comune
+ * the player tapped (index === target) — no coordinate maths — so it is reliable
+ * on every browser. A hit scores + refills energy; a miss costs energy and, after
+ * `maxAttempts`, reveals the answer and moves on.
+ */
+function energyGuess(
+  state: GameState,
+  action: { index: number; roundElapsedMs?: number },
+  target: number,
+  correct: boolean,
+  nextFeedbackId: number,
+): GameState {
+  if (correct) {
+    const attemptNumber = state.attempts + 1;
+    const tier = clamp(attemptNumber, 1, ENERGY_CONFIG.attemptBase.length);
+    const base = ENERGY_CONFIG.attemptBase[tier - 1];
+    const correctStreak = state.correctStreak + 1;
+    const streakMultiplier =
+      correctStreak >= ENERGY_CONFIG.streak.tripleAt
+        ? 3
+        : correctStreak >= ENERGY_CONFIG.streak.doubleAt
+          ? 2
+          : 1;
+    const speedBonus =
+      (action.roundElapsedMs ?? Number.POSITIVE_INFINITY) <
+      ENERGY_CONFIG.speedBonusThresholdMs
+        ? ENERGY_CONFIG.speedBonus
+        : 0;
+    const firstTryBonus =
+      attemptNumber === 1 ? ENERGY_CONFIG.firstTryBullseyeBonus : 0;
+    const total = base * streakMultiplier + speedBonus + firstTryBonus;
+    const refill =
+      attemptNumber === 1
+        ? ENERGY_CONFIG.refill.bullseye
+        : attemptNumber === 2
+          ? ENERGY_CONFIG.refill.near
+          : ENERGY_CONFIG.refill.far;
+
+    const status = state.status.slice();
+    status[target] = "found";
+    return advance({
+      ...state,
+      status,
+      found: state.found + 1,
+      score: state.score + total,
+      energy: clamp(state.energy + refill, 0, ENERGY_CONFIG.max),
+      correctStreak,
+      wrongStreak: 0,
+      attempts: 0,
+      scoreBreakdown: {
+        base,
+        streakMultiplier,
+        speedBonus,
+        firstTryBonus,
+        total,
+      },
+      feedback: { id: nextFeedbackId, index: action.index, correct: true },
+    });
+  }
+
+  const energy = clamp(
+    state.energy - ENERGY_CONFIG.wrongAttemptCost,
+    0,
+    ENERGY_CONFIG.max,
+  );
+  const feedback: Feedback = {
+    id: nextFeedbackId,
+    index: action.index,
+    correct: false,
+  };
+
+  if (energy <= 0) {
+    return {
+      ...state,
+      energy,
+      wrongStreak: state.wrongStreak + 1,
+      correctStreak: 0,
+      feedback,
+      phase: "finished",
+    };
+  }
+
+  const attempts = state.attempts + 1;
+  if (attempts >= ENERGY_CONFIG.maxAttempts) {
+    const status = state.status.slice();
+    status[target] = "missed";
+    return advance({
+      ...state,
+      status,
+      missed: state.missed + 1,
+      energy,
+      attempts: 0,
+      wrongStreak: state.wrongStreak + 1,
+      correctStreak: 0,
+      feedback,
+    });
+  }
+
+  return {
+    ...state,
+    energy,
+    attempts,
+    wrongStreak: state.wrongStreak + 1,
+    correctStreak: 0,
+    feedback,
+  };
+}
+
 export function reducer(state: GameState, action: GameAction): GameState {
   if (state.phase !== "playing") return state;
 
@@ -218,8 +321,13 @@ export function reducer(state: GameState, action: GameAction): GameState {
       const target = currentTarget(state);
       if (target === null) return state;
       const nextFeedbackId = (state.feedback?.id ?? 0) + 1;
+      const correct = action.index === target;
 
-      if (action.index === target) {
+      if (state.mode.kind === "energy") {
+        return energyGuess(state, action, target, correct, nextFeedbackId);
+      }
+
+      if (correct) {
         const status = state.status.slice();
         status[target] = "found";
         return advance({
@@ -237,123 +345,6 @@ export function reducer(state: GameState, action: GameAction): GameState {
         correctStreak: 0,
         wrongStreak: state.wrongStreak + 1,
         feedback: { id: nextFeedbackId, index: action.index, correct: false },
-      };
-    }
-
-    case "guessPoint": {
-      if (state.mode.kind !== "energy") return state;
-      const target = currentTarget(state);
-      if (target === null) return state;
-      const feature = state.map.features[target];
-      const nextFeedbackId = (state.feedback?.id ?? 0) + 1;
-      const correct = pointInGeometry(action.point, feature.geometry);
-
-      if (correct) {
-        const attemptNumber = state.attempts + 1;
-        const tier = clamp(attemptNumber, 1, ENERGY_CONFIG.attemptBase.length);
-        const base = ENERGY_CONFIG.attemptBase[tier - 1];
-        const distanceKm = haversineKm(action.point, feature.centroid);
-        const distanceFactor = clamp(
-          1 - distanceKm / ENERGY_CONFIG.distanceFactorReferenceKm,
-          ENERGY_CONFIG.distanceFactorFloor,
-          1,
-        );
-        const correctStreak = state.correctStreak + 1;
-        const streakMultiplier =
-          correctStreak >= ENERGY_CONFIG.streak.tripleAt
-            ? 3
-            : correctStreak >= ENERGY_CONFIG.streak.doubleAt
-              ? 2
-              : 1;
-        const speedBonus =
-          action.roundElapsedMs < ENERGY_CONFIG.speedBonusThresholdMs
-            ? ENERGY_CONFIG.speedBonus
-            : 0;
-        const firstTryBonus =
-          attemptNumber === 1 ? ENERGY_CONFIG.firstTryBullseyeBonus : 0;
-        const total =
-          Math.round(base * distanceFactor * streakMultiplier) +
-          speedBonus +
-          firstTryBonus;
-        const refill =
-          attemptNumber === 1
-            ? ENERGY_CONFIG.refill.bullseye
-            : attemptNumber === 2
-              ? ENERGY_CONFIG.refill.near
-              : ENERGY_CONFIG.refill.far;
-
-        const status = state.status.slice();
-        status[target] = "found";
-        return advance({
-          ...state,
-          status,
-          found: state.found + 1,
-          score: state.score + total,
-          energy: clamp(state.energy + refill, 0, ENERGY_CONFIG.max),
-          correctStreak,
-          wrongStreak: 0,
-          attempts: 0,
-          scoreBreakdown: {
-            base,
-            distanceFactor,
-            streakMultiplier,
-            speedBonus,
-            firstTryBonus,
-            total,
-          },
-          feedback: { id: nextFeedbackId, index: null, correct: true },
-        });
-      }
-
-      const distanceKm = haversineKm(action.point, feature.centroid);
-      const bearingDeg = bearingDegrees(action.point, feature.centroid);
-      const energy = clamp(
-        state.energy - ENERGY_CONFIG.wrongAttemptCost,
-        0,
-        ENERGY_CONFIG.max,
-      );
-      const feedback: Feedback = {
-        id: nextFeedbackId,
-        index: null,
-        correct: false,
-        distanceKm,
-        bearingDeg,
-      };
-
-      if (energy <= 0) {
-        return {
-          ...state,
-          energy,
-          wrongStreak: state.wrongStreak + 1,
-          correctStreak: 0,
-          feedback,
-          phase: "finished",
-        };
-      }
-
-      const attempts = state.attempts + 1;
-      if (attempts >= ENERGY_CONFIG.maxAttempts) {
-        const status = state.status.slice();
-        status[target] = "missed";
-        return advance({
-          ...state,
-          status,
-          missed: state.missed + 1,
-          energy,
-          attempts: 0,
-          wrongStreak: state.wrongStreak + 1,
-          correctStreak: 0,
-          feedback,
-        });
-      }
-
-      return {
-        ...state,
-        energy,
-        attempts,
-        wrongStreak: state.wrongStreak + 1,
-        correctStreak: 0,
-        feedback,
       };
     }
 

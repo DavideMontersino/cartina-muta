@@ -22,23 +22,31 @@ interface MapCanvasProps {
   wrongKey: number;
   /** Index to briefly reveal after a skip, or null. */
   revealIndex: number | null;
-  /** Region-click guessing (timer/complete modes): fires with the clicked region's index. */
+  /** Fires with the clicked/tapped region's index. Correctness lives in the reducer. */
   onPick?: (index: number) => void;
-  /** Free-form guessing (energy mode): fires with the clicked [lon, lat], wherever on the map it lands. */
-  onGuessPoint?: (point: [number, number]) => void;
   /** Enables drag-to-pan and pinch/wheel-to-zoom (energy mode's mobile-first map). */
   panZoom?: boolean;
   interactive: boolean;
 }
 
 const MIN_SCALE = 1;
-const MAX_SCALE = 4;
+const MAX_SCALE = 6;
 /** Pointer movement below this (px, in screen space) counts as a tap, not a pan drag. */
 const TAP_MOVE_THRESHOLD_PX = 8;
+/** viewBox centre — pan/zoom scale about this so zooming keeps the map centred. */
+const CENTER_X = VIEW_W / 2;
+const CENTER_Y = VIEW_H / 2;
 
 const clamp = (n: number, min: number, max: number) =>
   Math.min(max, Math.max(min, n));
 
+/**
+ * Pan (in viewBox units) and zoom applied to the map content. Kept as an inner
+ * SVG `<g>` transform — NOT a CSS transform on the <svg>. Guesses are resolved
+ * by which comune path the browser hit-tests under the pointer, so there is no
+ * screen→lon/lat inversion to get wrong (WebKit's getScreenCTM() ignores CSS
+ * transforms on the SVG element, which used to corrupt every energy-mode tap).
+ */
 interface Transform {
   x: number;
   y: number;
@@ -50,6 +58,10 @@ type Gesture =
       kind: "pan";
       startTransform: Transform;
       startClient: { x: number; y: number };
+      /** viewBox units per client px (getScreenCTM scale) at gesture start. */
+      viewScale: number;
+      /** Region index under the finger at press time — dispatched if this stays a tap. */
+      downIndex: number | null;
       moved: boolean;
     }
   | {
@@ -57,6 +69,13 @@ type Gesture =
       startTransform: Transform;
       startDistance: number;
     };
+
+/** Reads the comune index off the nearest ancestor path with a data-index. */
+function indexUnder(target: EventTarget | null): number | null {
+  const el = (target as Element | null)?.closest?.("[data-index]");
+  const raw = el?.getAttribute("data-index");
+  return raw === null || raw === undefined ? null : Number(raw);
+}
 
 export function MapCanvas({
   map,
@@ -66,7 +85,6 @@ export function MapCanvas({
   wrongKey,
   revealIndex,
   onPick,
-  onGuessPoint,
   panZoom = false,
   interactive,
 }: MapCanvasProps) {
@@ -83,30 +101,6 @@ export function MapCanvas({
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<Gesture | null>(null);
 
-  const toViewBoxPoint = useCallback(
-    (clientX: number, clientY: number): [number, number] | null => {
-      const svg = svgRef.current;
-      const ctm = svg?.getScreenCTM();
-      if (!svg || !ctm) return null;
-      const pt = svg.createSVGPoint();
-      pt.x = clientX;
-      pt.y = clientY;
-      const p = pt.matrixTransform(ctm.inverse());
-      return [p.x, p.y];
-    },
-    [],
-  );
-
-  const guessAt = useCallback(
-    (clientX: number, clientY: number) => {
-      if (!onGuessPoint) return;
-      const viewBoxPoint = toViewBoxPoint(clientX, clientY);
-      const point = viewBoxPoint ? projected.invert(viewBoxPoint) : null;
-      if (point) onGuessPoint(point);
-    },
-    [onGuessPoint, toViewBoxPoint, projected],
-  );
-
   const handlePointerDown = useCallback(
     (e: ReactPointerEvent<SVGSVGElement>) => {
       if (!panZoom || !interactive) return;
@@ -118,6 +112,8 @@ export function MapCanvas({
           kind: "pan",
           startTransform: transform,
           startClient: { x: e.clientX, y: e.clientY },
+          viewScale: svgRef.current?.getScreenCTM()?.a || 1,
+          downIndex: indexUnder(e.target),
           moved: false,
         };
       } else if (pointers.current.size === 2) {
@@ -143,10 +139,12 @@ export function MapCanvas({
         const dx = e.clientX - g.startClient.x;
         const dy = e.clientY - g.startClient.y;
         if (Math.hypot(dx, dy) > TAP_MOVE_THRESHOLD_PX) g.moved = true;
+        // Pan lives in viewBox units (the <g> transform space), so scale the
+        // client-px drag back into viewBox units via the getScreenCTM factor.
         setTransform({
           ...g.startTransform,
-          x: g.startTransform.x + dx,
-          y: g.startTransform.y + dy,
+          x: g.startTransform.x + dx / g.viewScale,
+          y: g.startTransform.y + dy / g.viewScale,
         });
       } else if (g.kind === "pinch" && pointers.current.size === 2) {
         const [a, b] = [...pointers.current.values()];
@@ -165,21 +163,15 @@ export function MapCanvas({
   const handlePointerUp = useCallback(
     (e: ReactPointerEvent<SVGSVGElement>) => {
       const g = gesture.current;
-      const wasTap = panZoom && g?.kind === "pan" && !g.moved;
       pointers.current.delete(e.pointerId);
       if (pointers.current.size === 0) gesture.current = null;
-      if (wasTap && interactive) guessAt(e.clientX, e.clientY);
+      // A clean tap (no pan drift) on a comune counts as a guess for that comune.
+      if (panZoom && interactive && g?.kind === "pan" && !g.moved) {
+        const index = g.downIndex ?? indexUnder(e.target);
+        if (index !== null && Number.isInteger(index)) onPick?.(index);
+      }
     },
-    [panZoom, interactive, guessAt],
-  );
-
-  const handleClick = useCallback(
-    (e: React.MouseEvent<SVGSVGElement>) => {
-      // panZoom mode handles taps itself via pointerup (so drags don't guess).
-      if (panZoom || !interactive) return;
-      guessAt(e.clientX, e.clientY);
-    },
-    [panZoom, interactive, guessAt],
+    [panZoom, interactive, onPick],
   );
 
   const handleWheel = useCallback(
@@ -198,7 +190,6 @@ export function MapCanvas({
   );
 
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: the free-click map guess (energy mode) has no keyboard-friendly equivalent, same as the per-region paths below.
     <svg
       ref={svgRef}
       className="map-canvas"
@@ -206,15 +197,7 @@ export function MapCanvas({
       role="img"
       aria-label={map.name}
       preserveAspectRatio="xMidYMid meet"
-      style={
-        panZoom
-          ? {
-              transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
-              touchAction: "none",
-            }
-          : undefined
-      }
-      onClick={onGuessPoint && !panZoom ? handleClick : undefined}
+      style={panZoom ? { touchAction: "none" } : undefined}
       onPointerDown={panZoom ? handlePointerDown : undefined}
       onPointerMove={panZoom ? handlePointerMove : undefined}
       onPointerUp={panZoom ? handlePointerUp : undefined}
@@ -222,62 +205,71 @@ export function MapCanvas({
       onWheel={panZoom ? handleWheel : undefined}
     >
       <title>{map.name}</title>
-      <g>
-        {shapes.map((s, i) => {
-          const st = status[i];
-          const isFlash = flashIndex === i;
-          const isReveal = revealIndex === i;
-          const cls = [
-            "region",
-            `region--${st}`,
-            isFlash ? "region--flash" : "",
-            isReveal ? "region--reveal" : "",
-            hover === i ? "region--hover" : "",
-          ]
-            .filter(Boolean)
-            .join(" ");
-          return (
-            // biome-ignore lint/a11y/noStaticElementInteractions: SVG map regions are inherently pointer-interactive; there is no keyboard-friendly way to click a specific comune shape.
-            <path
-              key={map.features[i].istat}
-              d={s.d}
-              className={cls}
-              onClick={
-                interactive && onPick && !onGuessPoint
-                  ? () => onPick(i)
-                  : undefined
-              }
-              onPointerEnter={interactive ? () => setHover(i) : undefined}
-              onPointerLeave={interactive ? () => setHover(null) : undefined}
-            />
-          );
-        })}
-      </g>
-      <g className="labels" pointerEvents="none">
-        {shapes.map((s, i) =>
-          status[i] === "found" ? (
-            <text
-              key={map.features[i].istat}
-              x={s.cx}
-              y={s.cy}
-              className="region-label"
-            >
-              {map.features[i].name}
-            </text>
-          ) : null,
+      <g
+        transform={
+          panZoom
+            ? `translate(${transform.x + CENTER_X} ${transform.y + CENTER_Y}) scale(${transform.scale}) translate(${-CENTER_X} ${-CENTER_Y})`
+            : undefined
+        }
+      >
+        <g>
+          {shapes.map((s, i) => {
+            const st = status[i];
+            const isFlash = flashIndex === i;
+            const isReveal = revealIndex === i;
+            const cls = [
+              "region",
+              `region--${st}`,
+              isFlash ? "region--flash" : "",
+              isReveal ? "region--reveal" : "",
+              hover === i ? "region--hover" : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
+            return (
+              // biome-ignore lint/a11y/noStaticElementInteractions: SVG map regions are inherently pointer-interactive; there is no keyboard-friendly way to click a specific comune shape.
+              <path
+                key={map.features[i].istat}
+                data-index={i}
+                d={s.d}
+                className={cls}
+                onClick={
+                  interactive && onPick && !panZoom
+                    ? () => onPick(i)
+                    : undefined
+                }
+                onPointerEnter={interactive ? () => setHover(i) : undefined}
+                onPointerLeave={interactive ? () => setHover(null) : undefined}
+              />
+            );
+          })}
+        </g>
+        <g className="labels" pointerEvents="none">
+          {shapes.map((s, i) =>
+            status[i] === "found" ? (
+              <text
+                key={map.features[i].istat}
+                x={s.cx}
+                y={s.cy}
+                className="region-label"
+              >
+                {map.features[i].name}
+              </text>
+            ) : null,
+          )}
+        </g>
+        {wrongIndex !== null && (
+          <text
+            key={wrongKey}
+            x={shapes[wrongIndex].cx}
+            y={shapes[wrongIndex].cy}
+            className="wrong-label"
+            pointerEvents="none"
+          >
+            {map.features[wrongIndex].name}
+          </text>
         )}
       </g>
-      {wrongIndex !== null && (
-        <text
-          key={wrongKey}
-          x={shapes[wrongIndex].cx}
-          y={shapes[wrongIndex].cy}
-          className="wrong-label"
-          pointerEvents="none"
-        >
-          {map.features[wrongIndex].name}
-        </text>
-      )}
     </svg>
   );
 }

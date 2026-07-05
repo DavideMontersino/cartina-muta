@@ -7,7 +7,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { compassArrow } from "../game/distance";
 import {
   createGame,
   currentTarget,
@@ -48,6 +47,8 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   const [energyToast, setEnergyToast] = useState<{
     id: number;
     kind: "hit" | "miss";
+    /** Local-language reaction shown on a miss (in place of distance/bearing). */
+    reaction: string;
   } | null>(null);
   const flashTimer = useRef<number | undefined>(undefined);
   const wrongTimer = useRef<number | undefined>(undefined);
@@ -168,19 +169,35 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
     config.map.id,
   ]);
 
-  // Energy mode: itemized score toast on a hit, distance+bearing toast on a miss.
+  // Energy mode: itemized score toast on a hit, a local-language reaction on a
+  // miss (same dialect phrase pool the classic modes use).
   useEffect(() => {
     if (!isEnergy || !state.feedback) return;
+    const correct = state.feedback.correct;
     setEnergyToast({
       id: state.feedback.id,
-      kind: state.feedback.correct ? "hit" : "miss",
+      kind: correct ? "hit" : "miss",
+      reaction: correct
+        ? ""
+        : pickReaction(
+            config.map.id,
+            false,
+            state.correctStreak,
+            state.wrongStreak,
+          ),
     });
     window.clearTimeout(energyToastTimer.current);
     energyToastTimer.current = window.setTimeout(
       () => setEnergyToast(null),
       2200,
     );
-  }, [isEnergy, state.feedback]);
+  }, [
+    isEnergy,
+    state.feedback,
+    state.correctStreak,
+    state.wrongStreak,
+    config.map.id,
+  ]);
 
   useEffect(
     () => () => {
@@ -212,49 +229,27 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
 
   const handlePick = useCallback(
     (index: number) => {
-      if (target !== null) {
-        logRef.current.push({
-          tMs: Math.round(performance.now() - startRef.current),
-          type: "guess",
-          targetIstat: config.map.features[target].istat,
-          guessIstat: config.map.features[index].istat,
-          correct: index === target,
-        });
-      }
-      dispatch({ type: "guess", index });
-    },
-    [target, config.map.features],
-  );
-
-  const handleGuessPoint = useCallback(
-    (point: [number, number]) => {
       if (target === null) return;
-      pendingEnergyTargetRef.current = target;
+      // Energy mode's 3rd-miss auto-reveal advances the round before the reveal
+      // effect runs, so capture the target now (mirrors the skip flow).
+      if (isEnergy) pendingEnergyTargetRef.current = target;
       logRef.current.push({
         tMs: Math.round(performance.now() - startRef.current),
-        type: "guessPoint",
+        type: "guess",
         targetIstat: config.map.features[target].istat,
-        point,
-        // Correctness isn't known client-side (point-in-polygon lives in the
-        // reducer) — filled in from the next feedback once dispatched below.
-        correct: false,
+        guessIstat: config.map.features[index].istat,
+        correct: index === target,
       });
       dispatch({
-        type: "guessPoint",
-        point,
-        roundElapsedMs: Math.round(performance.now() - roundStartRef.current),
+        type: "guess",
+        index,
+        roundElapsedMs: isEnergy
+          ? Math.round(performance.now() - roundStartRef.current)
+          : undefined,
       });
     },
-    [target, config.map.features],
+    [target, config.map.features, isEnergy],
   );
-
-  // The actionLog entry pushed in handleGuessPoint can't know "correct" yet
-  // (the reducer decides it) — patch the last entry once feedback lands.
-  useEffect(() => {
-    if (!isEnergy || !state.feedback) return;
-    const last = logRef.current[logRef.current.length - 1];
-    if (last?.type === "guessPoint") last.correct = state.feedback.correct;
-  }, [isEnergy, state.feedback]);
 
   const resolved = state.found + state.missed;
 
@@ -269,7 +264,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
             wrongIndex={wrongIndex}
             wrongKey={wrongKey}
             revealIndex={revealIndex}
-            onGuessPoint={handleGuessPoint}
+            onPick={handlePick}
             panZoom
             interactive={playing}
           />
@@ -303,13 +298,9 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
                   )}
                 </>
               ) : (
-                state.feedback?.distanceKm !== undefined &&
-                state.feedback.bearingDeg !== undefined && (
-                  <span className="energy-toast__miss">
-                    {Math.round(state.feedback.distanceKm)} km{" "}
-                    {compassArrow(state.feedback.bearingDeg)}
-                  </span>
-                )
+                <span className="energy-toast__miss">
+                  {energyToast.reaction}
+                </span>
               )}
             </div>
           )}
