@@ -14,7 +14,6 @@ import {
   type GameConfig,
   reducer,
 } from "../game/engine";
-import { projectMap } from "../game/geo";
 import { pickReaction } from "../game/reactions";
 import type {
   ActionLogEntry,
@@ -44,7 +43,6 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   const [isRevealing, setIsRevealing] = useState(false);
   const [isAnimatingMap, setIsAnimatingMap] = useState(false);
   const mapRef = useRef<MapCanvasRef>(null);
-  const projected = useMemo(() => projectMap(config.map), [config.map]);
   const [flashIndex, setFlashIndex] = useState<number | null>(null);
   const [wrongIndex, setWrongIndex] = useState<number | null>(null);
   const [wrongKey, setWrongKey] = useState(0);
