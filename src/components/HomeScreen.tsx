@@ -176,8 +176,9 @@ function ModeStep({ province, onBack, onStart }: ModeStepProps) {
             <h2 className="mode-card__title">Corsa a energia</h2>
             <p className="mode-card__desc">
               Un comune via l'altro, facile-poi-difficile, finché la tua energia
-              regge. Risposte giuste la ricaricano, errori e salti la consumano
-              — quanto a fondo riesci ad arrivare?
+              regge. Risposte giuste la ricaricano, gli errori la consumano —
+              puoi sempre saltare senza penalità. Quanto a fondo riesci ad
+              arrivare?
             </p>
             <div className="mode-card__actions">
               <button

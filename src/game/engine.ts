@@ -78,7 +78,7 @@ export type GameAction =
 export const ENERGY_CONFIG = {
   start: 100,
   max: 100,
-  drainPerSecond: 0.5,
+  drainPerSecond: 0.625,
   /** Drain rate grows this fraction per minute survived. */
   drainGrowthPerMinute: 0.1,
   refill: { bullseye: 20, near: 10, far: 5 },
