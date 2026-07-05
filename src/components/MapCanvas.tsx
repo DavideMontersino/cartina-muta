@@ -1,46 +1,122 @@
-import { useMemo, useState } from "react";
+import {
+  type Ref,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { RegionStatus } from "../game/engine";
-import { projectMap, VIEW_H, VIEW_W } from "../game/geo";
+import {
+  CENTER_X,
+  CENTER_Y,
+  centerOn,
+  IDENTITY_TRANSFORM,
+  projectMap,
+  VIEW_H,
+  VIEW_W,
+} from "../game/geo";
 import type { MapDefinition } from "../maps/types";
 import { usePanZoom } from "./usePanZoom";
+
+/** Imperative view controls the game screen drives on a round transition. */
+export interface MapCanvasHandle {
+  /**
+   * Fly the viewport onto region `index`, hold+flash it (so the player sees
+   * where it was, even if it was off-screen), then fly back to the whole map.
+   * `onDone` fires once the map has settled back on the full province.
+   */
+  reveal(index: number, onDone?: () => void): void;
+  /** Ease the viewport back to the whole-province view. */
+  resetView(): void;
+}
 
 interface MapCanvasProps {
   map: MapDefinition;
   status: RegionStatus[];
   /** Index currently flashing red after a wrong guess, or null. */
   flashIndex: number | null;
-  /** Index to briefly reveal after a skip, or null. */
-  revealIndex: number | null;
   /** Fires with the clicked/tapped region's index. Correctness lives in the reducer. */
   onPick?: (index: number) => void;
   /** Enables drag-to-pan and pinch/wheel-to-zoom. */
   panZoom?: boolean;
   interactive: boolean;
+  ref?: Ref<MapCanvasHandle>;
 }
 
-/** viewBox centre — pan/zoom scale about this so zooming keeps the map centred. */
-const CENTER_X = VIEW_W / 2;
-const CENTER_Y = VIEW_H / 2;
+/** Zoom level the reveal fly-to settles on before flashing the answer. */
+const REVEAL_SCALE = 2.4;
+/** Fly-out and fly-back durations (ms) — "smooth but quick" per the design. */
+const REVEAL_FLY_MS = 480;
+/** How long the answer stays centred and flashing before flying back (ms). */
+const REVEAL_HOLD_MS = 750;
+/** Duration of the plain zoom-out on a correct guess (ms). */
+const RESET_MS = 420;
 
 export function MapCanvas({
   map,
   status,
   flashIndex,
-  revealIndex,
   onPick,
   panZoom = false,
   interactive,
+  ref,
 }: MapCanvasProps) {
   const projected = useMemo(() => projectMap(map), [map]);
   const shapes = projected.features;
   const [hover, setHover] = useState<number | null>(null);
+  // The region being flown-to and flashed during a reveal, or null. Owned here
+  // so the fly/flash/name-label stay in lockstep with the viewport animation.
+  const [revealIndex, setRevealIndex] = useState<number | null>(null);
+  const holdTimer = useRef<number | undefined>(undefined);
 
-  const { svgRef, transformAttr, style, handlers } = usePanZoom({
+  const { svgRef, transformAttr, style, handlers, animateTo } = usePanZoom({
     enabled: panZoom && interactive,
     centerX: CENTER_X,
     centerY: CENTER_Y,
     onTap: onPick,
   });
+
+  const cancelHold = useCallback(() => {
+    window.clearTimeout(holdTimer.current);
+    holdTimer.current = undefined;
+  }, []);
+
+  const resetView = useCallback(() => {
+    cancelHold();
+    setRevealIndex(null);
+    animateTo(IDENTITY_TRANSFORM, RESET_MS);
+  }, [animateTo, cancelHold]);
+
+  const reveal = useCallback(
+    (index: number, onDone?: () => void) => {
+      cancelHold();
+      const shape = shapes[index];
+      if (!shape) {
+        onDone?.();
+        return;
+      }
+      setRevealIndex(index);
+      animateTo(
+        centerOn(shape.cx, shape.cy, REVEAL_SCALE),
+        REVEAL_FLY_MS,
+        () => {
+          holdTimer.current = window.setTimeout(() => {
+            animateTo(IDENTITY_TRANSFORM, REVEAL_FLY_MS, () => {
+              setRevealIndex(null);
+              onDone?.();
+            });
+          }, REVEAL_HOLD_MS);
+        },
+      );
+    },
+    [shapes, animateTo, cancelHold],
+  );
+
+  useImperativeHandle(ref, () => ({ reveal, resetView }), [reveal, resetView]);
+
+  useEffect(() => () => cancelHold(), [cancelHold]);
 
   return (
     <svg
@@ -88,18 +164,21 @@ export function MapCanvas({
           })}
         </g>
         <g className="labels" pointerEvents="none">
-          {shapes.map((s, i) =>
-            status[i] === "found" ? (
+          {shapes.map((s, i) => {
+            // Label found comuni, plus the one being revealed — so the player
+            // reads the name of the answer they missed while it's centred.
+            if (status[i] !== "found" && revealIndex !== i) return null;
+            return (
               <text
                 key={map.features[i].istat}
                 x={s.cx}
                 y={s.cy}
-                className="region-label"
+                className={`region-label ${revealIndex === i ? "region-label--reveal" : ""}`}
               >
                 {map.features[i].name}
               </text>
-            ) : null,
-          )}
+            );
+          })}
         </g>
       </g>
     </svg>

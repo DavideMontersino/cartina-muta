@@ -2,6 +2,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
   useCallback,
+  useEffect,
   useRef,
   useState,
 } from "react";
@@ -11,6 +12,9 @@ export interface PanZoomTransform {
   y: number;
   scale: number;
 }
+
+const easeInOutCubic = (t: number) =>
+  t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 
 interface UsePanZoomOptions {
   /** Master switch — when false, no gesture handlers are attached at all. */
@@ -76,12 +80,59 @@ export function usePanZoom({
     y: 0,
     scale: 1,
   });
+  // Mirror of `transform` for reads that must not go stale between renders
+  // (an animation samples the live value the instant it starts).
+  const transformRef = useRef(transform);
+  transformRef.current = transform;
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<Gesture | null>(null);
+  const animationRef = useRef<number | undefined>(undefined);
+
+  const stopAnimation = useCallback(() => {
+    if (animationRef.current !== undefined) {
+      cancelAnimationFrame(animationRef.current);
+      animationRef.current = undefined;
+    }
+  }, []);
+
+  // Tween the transform to `dest` over `durationMs` (eased), calling `onDone`
+  // when it lands. Any in-flight animation or user gesture supersedes it.
+  const animateTo = useCallback(
+    (dest: PanZoomTransform, durationMs: number, onDone?: () => void) => {
+      stopAnimation();
+      const from = transformRef.current;
+      if (durationMs <= 0) {
+        setTransform(dest);
+        onDone?.();
+        return;
+      }
+      const startTime = performance.now();
+      const step = (now: number) => {
+        const p = Math.min(1, (now - startTime) / durationMs);
+        const e = easeInOutCubic(p);
+        setTransform({
+          x: from.x + (dest.x - from.x) * e,
+          y: from.y + (dest.y - from.y) * e,
+          scale: from.scale + (dest.scale - from.scale) * e,
+        });
+        if (p < 1) {
+          animationRef.current = requestAnimationFrame(step);
+        } else {
+          animationRef.current = undefined;
+          onDone?.();
+        }
+      };
+      animationRef.current = requestAnimationFrame(step);
+    },
+    [stopAnimation],
+  );
+
+  useEffect(() => () => stopAnimation(), [stopAnimation]);
 
   const handlePointerDown = useCallback(
     (e: ReactPointerEvent<SVGSVGElement>) => {
       if (!enabled) return;
+      stopAnimation();
       (e.target as Element).setPointerCapture?.(e.pointerId);
       pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
@@ -103,7 +154,7 @@ export function usePanZoom({
         };
       }
     },
-    [enabled, transform],
+    [enabled, transform, stopAnimation],
   );
 
   const handlePointerMove = useCallback(
@@ -155,6 +206,7 @@ export function usePanZoom({
   const handleWheel = useCallback(
     (e: ReactWheelEvent<SVGSVGElement>) => {
       if (!enabled) return;
+      stopAnimation();
       setTransform((t) => ({
         ...t,
         scale: clamp(
@@ -164,7 +216,7 @@ export function usePanZoom({
         ),
       }));
     },
-    [enabled, minScale, maxScale],
+    [enabled, minScale, maxScale, stopAnimation],
   );
 
   // transformAttr/style reflect the current transform whenever the caller opts
@@ -178,6 +230,7 @@ export function usePanZoom({
     transform,
     transformAttr,
     style,
+    animateTo,
     handlers: {
       onPointerDown: enabled ? handlePointerDown : undefined,
       onPointerMove: enabled ? handlePointerMove : undefined,

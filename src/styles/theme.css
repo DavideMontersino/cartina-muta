@@ -394,6 +394,12 @@ button {
   font-size: clamp(1.6rem, 5vw, 2.4rem);
   margin: 0;
 }
+/* Placeholder shown in place of the name while a reveal plays — holds the
+   prompt's height so the map below doesn't jump, without naming the answer. */
+.prompt__name--revealing {
+  color: var(--ink-soft);
+  opacity: 0.45;
+}
 
 .map-wrap {
   position: relative;
@@ -482,7 +488,9 @@ button {
   fill: var(--teal);
   stroke: #2f5a52;
   stroke-width: 1.4;
-  animation: pulse 1s ease;
+  /* Loops for the whole fly-out/hold/fly-back so the answer stays alive on
+     screen while the viewport travels to it and back. */
+  animation: pulse 1s ease infinite;
 }
 @keyframes pulse {
   0%,
@@ -516,6 +524,16 @@ button {
   paint-order: stroke;
   stroke: rgba(242, 233, 214, 0.85);
   stroke-width: 2px;
+}
+/* The missed/skipped answer's name, shown while the viewport is zoomed onto
+   it — larger and bolder so it reads at the reveal zoom. */
+.region-label--reveal {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  fill: #1f4038;
+  stroke: rgba(242, 233, 214, 0.95);
+  stroke-width: 3px;
 }
 
 /* Wrong-guess name reveal — a fixed overlay in the lower third of the

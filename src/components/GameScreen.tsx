@@ -21,7 +21,7 @@ import type {
 } from "../leaderboard/types";
 import { ConfirmExitDialog } from "./ConfirmExitDialog";
 import { HamburgerMenu } from "./HamburgerMenu";
-import { MapCanvas } from "./MapCanvas";
+import { MapCanvas, type MapCanvasHandle } from "./MapCanvas";
 import { ResultCard } from "./ResultCard";
 
 interface GameScreenProps {
@@ -43,7 +43,10 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   const [flashIndex, setFlashIndex] = useState<number | null>(null);
   const [wrongIndex, setWrongIndex] = useState<number | null>(null);
   const [wrongKey, setWrongKey] = useState(0);
-  const [revealIndex, setRevealIndex] = useState<number | null>(null);
+  // True while the map is flying to a missed/skipped answer and back — the
+  // clock pauses and the next prompt stays hidden until the map settles.
+  const [revealing, setRevealing] = useState(false);
+  const mapRef = useRef<MapCanvasHandle | null>(null);
   const [reaction, setReaction] = useState<{ id: number; text: string } | null>(
     null,
   );
@@ -55,13 +58,11 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   } | null>(null);
   const flashTimer = useRef<number | undefined>(undefined);
   const wrongTimer = useRef<number | undefined>(undefined);
-  const revealTimer = useRef<number | undefined>(undefined);
   const reactionTimer = useRef<number | undefined>(undefined);
   const energyToastTimer = useRef<number | undefined>(undefined);
-  // The target a pending energy-mode guess was against — captured so the
-  // "3rd miss" auto-reveal (which advances the round before this effect
-  // sees it) still knows which region to flash, mirroring the skip flow.
-  const pendingEnergyTargetRef = useRef<number | null>(null);
+  // Previous status array, so a status effect can spot the region that just
+  // flipped to found/missed and drive the matching viewport animation.
+  const prevStatusRef = useRef(state.status);
   // Precise time the current round's target was presented — energy mode's
   // speed bonus needs this, but the reducer only tracks rounded whole
   // seconds via "tick".
@@ -94,10 +95,13 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
     }
   }, [state.phase, finalElapsedMs]);
 
+  // Start the round's speed-bonus clock when the prompt actually becomes
+  // visible — not while the reveal animation is still hiding it — so the
+  // fly-to-answer time never eats into the player's reaction window.
   // biome-ignore lint/correctness/useExhaustiveDependencies: `target` is a re-run trigger (new round presented), not a value the effect reads.
   useEffect(() => {
-    roundStartRef.current = performance.now();
-  }, [target]);
+    if (!revealing) roundStartRef.current = performance.now();
+  }, [target, revealing]);
 
   const submission = useMemo<ScoreSubmissionPayload | null>(() => {
     if (finalElapsedMs === null) return null;
@@ -123,12 +127,13 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   ]);
 
   // Tick once per second while playing (drives the timer/energy drain and elapsed clock).
-  // Paused while the exit confirmation is up, so deciding doesn't cost time/energy.
+  // Paused while the exit confirmation is up, so deciding doesn't cost time/energy,
+  // and while a reveal animation plays, so the answer fly-out is time/energy-free.
   useEffect(() => {
-    if (!playing || confirmExit) return;
+    if (!playing || confirmExit || revealing) return;
     const id = window.setInterval(() => dispatch({ type: "tick" }), 1000);
     return () => window.clearInterval(id);
-  }, [playing, confirmExit]);
+  }, [playing, confirmExit, revealing]);
 
   // On a wrong region-index guess (timer/complete modes): flash the region
   // red briefly on the map, and surface its name in a fixed overlay (lower
@@ -155,18 +160,28 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
     wrongTimer.current = window.setTimeout(() => setWrongIndex(null), 2400);
   }, [state.feedback]);
 
-  // Energy mode: after the round auto-resolves (3rd miss), briefly pulse the
-  // region that was actually the target — the reducer has already advanced
-  // to the next one, so this relies on the target captured before dispatch.
+  // On every round transition, animate the viewport. When a region is missed
+  // (a skip, or the last energy-mode failure) fly onto it and flash it so the
+  // player sees where it was — even if it was off-screen — then fly back to
+  // the whole province. When one is found, just ease back to the whole
+  // province. Detected off the status array so skip and 3rd-miss share a path.
   useEffect(() => {
-    if (!isEnergy || !state.feedback || state.feedback.correct) return;
-    const missedTarget = pendingEnergyTargetRef.current;
-    if (missedTarget === null || state.status[missedTarget] !== "missed")
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = state.status;
+    if (prev === state.status) return;
+    for (let i = 0; i < state.status.length; i++) {
+      if (prev[i] === state.status[i]) continue;
+      if (state.status[i] === "missed") {
+        setRevealing(true);
+        const finish = () => setRevealing(false);
+        if (mapRef.current) mapRef.current.reveal(i, finish);
+        else finish();
+      } else if (state.status[i] === "found") {
+        mapRef.current?.resetView();
+      }
       return;
-    setRevealIndex(missedTarget);
-    window.clearTimeout(revealTimer.current);
-    revealTimer.current = window.setTimeout(() => setRevealIndex(null), 1100);
-  }, [isEnergy, state.feedback, state.status]);
+    }
+  }, [state.status]);
 
   // On every guess: surface a funny local reaction (curse/praise), with
   // dialect flavour when the province has one and streak-aware milestones.
@@ -224,7 +239,6 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
     () => () => {
       window.clearTimeout(flashTimer.current);
       window.clearTimeout(wrongTimer.current);
-      window.clearTimeout(revealTimer.current);
       window.clearTimeout(reactionTimer.current);
       window.clearTimeout(energyToastTimer.current);
     },
@@ -233,27 +247,19 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
 
   const handleSkip = useCallback(() => {
     if (target === null) return;
-    // Keep in sync with the energy-mode auto-reveal effect below, which
-    // otherwise re-fires on this dispatch's status change and can
-    // overwrite this reveal with a stale target from an earlier miss.
-    pendingEnergyTargetRef.current = target;
     logRef.current.push({
       tMs: Math.round(performance.now() - startRef.current),
       type: "skip",
       targetIstat: config.map.features[target].istat,
     });
-    setRevealIndex(target);
-    window.clearTimeout(revealTimer.current);
-    revealTimer.current = window.setTimeout(() => setRevealIndex(null), 1100);
+    // The reveal fly-to is driven by the status effect once `skip` marks the
+    // target `missed`.
     dispatch({ type: "skip" });
   }, [target, config.map.features]);
 
   const handlePick = useCallback(
     (index: number) => {
       if (target === null) return;
-      // Energy mode's 3rd-miss auto-reveal advances the round before the reveal
-      // effect runs, so capture the target now (mirrors the skip flow).
-      if (isEnergy) pendingEnergyTargetRef.current = target;
       logRef.current.push({
         tMs: Math.round(performance.now() - startRef.current),
         type: "guess",
@@ -279,13 +285,13 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
       <div className="game game--energy">
         <div className="map-wrap map-wrap--full">
           <MapCanvas
+            ref={mapRef}
             map={config.map}
             status={state.status}
             flashIndex={flashIndex}
-            revealIndex={revealIndex}
             onPick={handlePick}
             panZoom
-            interactive={playing}
+            interactive={playing && !revealing}
           />
           {wrongIndex !== null && (
             <div key={wrongKey} className="wrong-name-toast">
@@ -366,7 +372,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
               <span className="stat__label">punti</span>
             </div>
           </div>
-          {playing && target !== null && (
+          {playing && target !== null && !revealing && (
             <div className="prompt prompt--overlay">
               <span className="prompt__cue">Trova</span>
               <h2 className="prompt__name">
@@ -444,12 +450,28 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
       </header>
 
       {playing && target !== null && (
+        // Kept mounted (with a stable-height placeholder) during a reveal so
+        // the map doesn't reflow while the answer flies out and back.
         <div className="prompt">
-          <span className="prompt__cue">Trova</span>
-          <h2 className="prompt__name">{config.map.features[target].name}</h2>
-          <button type="button" className="btn btn--skip" onClick={handleSkip}>
-            Salta / mostra
-          </button>
+          {revealing ? (
+            <span className="prompt__name prompt__name--revealing" aria-hidden>
+              …
+            </span>
+          ) : (
+            <>
+              <span className="prompt__cue">Trova</span>
+              <h2 className="prompt__name">
+                {config.map.features[target].name}
+              </h2>
+              <button
+                type="button"
+                className="btn btn--skip"
+                onClick={handleSkip}
+              >
+                Salta / mostra
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -463,13 +485,13 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
           </div>
         )}
         <MapCanvas
+          ref={mapRef}
           map={config.map}
           status={state.status}
           flashIndex={flashIndex}
-          revealIndex={revealIndex}
           onPick={handlePick}
           panZoom
-          interactive={playing}
+          interactive={playing && !revealing}
         />
         {wrongIndex !== null && (
           <div key={wrongKey} className="wrong-name-toast">
