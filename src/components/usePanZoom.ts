@@ -146,7 +146,7 @@ export function usePanZoom({
         });
       }
     },
-    [enabled, minScale, maxScale],
+    [enabled, minScale, maxScale, centerX, centerY],
   );
 
   const handlePointerUp = useCallback(
