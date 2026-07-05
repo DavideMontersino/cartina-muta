@@ -116,31 +116,109 @@ button {
   border-color: var(--ink-soft);
 }
 
-/* ---------- Home ---------- */
+/* ---------- Home / wizard ---------- */
+/* Centered fallback container (loading screen). */
 .home {
   position: relative;
-  min-height: 100%;
+  height: 100%;
   display: grid;
   place-items: center;
   padding: 2rem 1.25rem;
-}
-.home__layout {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 2rem;
-  width: 100%;
-}
-@media (max-width: 900px) {
-  .home__layout {
-    flex-direction: column;
-    align-items: center;
-  }
 }
 .home__inner {
   width: min(760px, 100%);
   text-align: center;
 }
+/* Two-step wizard (pick province → pick mode). Each step is a full-height flex
+   column so its content fits inside the non-scrolling viewport — see the
+   no-scroll rule in CLAUDE.md. */
+.wizard {
+  position: relative;
+  height: 100%;
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  text-align: center;
+}
+/* Top bar: brand (or back button) on the left, auth control on the right. Keeps
+   them from ever colliding — the auth menu is pulled into flow here instead of
+   floating absolutely over the centered heading. */
+.wizard__bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 2rem;
+}
+.wizard__brand {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.28em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--terracotta);
+}
+/* Reserve room for a two-line province name so cycling provinces (whose names
+   run from "Asti" to "Provincia di Valle d'Aosta/Vallée d'Aoste") never resizes
+   the map below — no layout shift. flex:0 0 auto keeps it out of the map's
+   flex-grow math; the title itself is min-height'd to two lines further down. */
+.home__head {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.wizard__actions {
+  display: flex;
+  justify-content: center;
+  padding-top: 0.25rem;
+}
+.btn--lg {
+  padding: 0.8rem 2.4rem;
+  font-size: 1.05rem;
+}
+.mode-step__head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+.mode-step__back {
+  align-self: flex-start;
+}
+.mode-step__heading {
+  text-align: center;
+}
+/* Modes beside the leaderboard on wide screens. On phones the leaderboard drops
+   away (it fetches from the API and is the secondary content) so the three game
+   modes fit the viewport without any scroll — the whole point of the wizard. */
+.mode-step__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2rem;
+  width: 100%;
+  overflow-y: auto;
+}
+.mode-step__modes {
+  flex: 1;
+  max-width: 640px;
+}
+@media (max-width: 900px) {
+  .mode-step__body {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+}
+/* Phone compacting for the mode step lives after the base .modes/.mode-card/
+   .leaderboard rules below so it overrides them without a specificity clash. */
 .home__eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.32em;
@@ -751,6 +829,13 @@ button {
   font-size: 0.85rem;
   color: var(--ink-soft);
 }
+/* In the wizard the auth control lives inside the top bar, in flow, so it sits
+   opposite the brand/back button instead of floating over the heading. */
+.wizard__bar .auth-menu {
+  position: relative;
+  top: auto;
+  right: auto;
+}
 .auth-menu__name {
   font-weight: 500;
   color: var(--ink);
@@ -852,6 +937,19 @@ button {
   max-width: 420px;
   height: auto;
   filter: drop-shadow(0 8px 20px rgba(59, 51, 39, 0.14));
+}
+/* In the wizard the map fills the leftover height and shrinks to fit so the
+   "Continua" button below it always stays on screen. preserveAspectRatio on the
+   SVG letterboxes the shape within whatever box we hand it. */
+.picker-wrap--grow {
+  flex: 1;
+  min-height: 0;
+  align-items: center;
+  margin-bottom: 0;
+}
+.picker-wrap--grow .picker {
+  height: 100%;
+  max-height: 100%;
 }
 .picker--loading {
   display: grid;
@@ -985,4 +1083,153 @@ button {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* ---------- Mode step: fit the viewport ---------- */
+/* Placed after the base .modes/.mode-card/.leaderboard rules so these overrides
+   win on source order. The cards are compacted so all three game modes fit the
+   screen without scrolling; on a phone the leaderboard (secondary, API-backed)
+   drops away to buy the room. */
+.mode-step__body .mode-step__modes {
+  gap: 0.75rem;
+}
+.mode-step__body .modes__classic {
+  gap: 0.75rem;
+}
+.mode-step__body .mode-card {
+  padding: 1.1rem 1.2rem;
+}
+.mode-step__body .mode-card__desc {
+  min-height: 0;
+  margin-bottom: 0.9rem;
+}
+/* Trimmed heading (overrides the tall home title/sub) keeps the header short so
+   the modes clear the fold. Defined here to win on source order. */
+.mode-step__title {
+  font-size: clamp(1.9rem, 5vw, 2.6rem);
+}
+.mode-step__sub {
+  margin: 0.3rem 0 0;
+  font-size: 0.95rem;
+}
+/* Province step: a touch smaller so long names settle into two lines, reserved
+   to a fixed two-line box and balanced across lines — the map beneath holds
+   still no matter which province is picked. (Defined here to win source order.) */
+.home__head .home__title {
+  font-size: clamp(1.8rem, 5.5vw, 2.9rem);
+  min-height: 2.1em;
+  display: grid;
+  align-content: center;
+  text-wrap: balance;
+}
+.home__head .home__sub {
+  margin: 0.5rem 0 0;
+  min-height: 2.8em; /* reserve two lines: long region names wrap on phones */
+}
+@media (max-width: 900px) {
+  .mode-step__body .leaderboard {
+    display: none;
+  }
+}
+
+/* ---------- Short viewports (landscape phones) ---------- */
+/* When height is scarce, reclaim it: drop the province heading's two-line
+   reserves (names fit one line at landscape widths) so the map keeps room, and
+   lay the three game modes in a row so they all clear the fold without an
+   internal scroll. */
+@media (max-height: 520px) {
+  .wizard {
+    padding-top: 0.75rem;
+    gap: 0.6rem;
+  }
+  /* The flex gap already spaces the footer; its 2.5rem margin just steals
+     height the mode cards need. */
+  .home__foot {
+    margin-top: 0;
+  }
+  .home__head .home__title {
+    font-size: clamp(1.4rem, 4vw, 2rem);
+    min-height: 0;
+  }
+  .home__head .home__sub {
+    min-height: 0;
+    margin-top: 0.25rem;
+    font-size: 0.9rem;
+  }
+  .mode-step__head {
+    gap: 0.2rem;
+  }
+  .mode-step__title {
+    font-size: clamp(1.4rem, 4vw, 2rem);
+  }
+  .mode-step__body {
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+  .mode-step__modes {
+    flex-direction: row;
+    align-items: stretch;
+    max-width: none;
+  }
+  .mode-step__modes .mode-card--featured {
+    flex: 1.3 1 0;
+  }
+  .mode-step__modes .modes__classic {
+    flex: 2.4 1 0;
+    grid-template-columns: 1fr 1fr;
+    align-content: start;
+  }
+  .mode-step__body .mode-card {
+    padding: 0.6rem 0.8rem;
+  }
+  .mode-step__body .mode-card__eyebrow {
+    margin-bottom: 0.1rem;
+  }
+  .mode-step__body .mode-card__title {
+    font-size: 1.1rem;
+    margin-bottom: 0.2rem;
+  }
+  .mode-step__body .mode-card__desc {
+    font-size: 0.78rem;
+    line-height: 1.3;
+    margin-bottom: 0.5rem;
+  }
+  /* The energy blurb is the long one — clamp it so the featured card doesn't
+     tower over the others and push its own "Inizia" off the short screen. */
+  .mode-step__body .mode-card--featured .mode-card__desc {
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  /* Keep "1 / 5 / 10 min" on one row (never stacked) so the card stays short. */
+  .mode-step__body .mode-card__actions {
+    flex-wrap: nowrap;
+  }
+  .mode-step__body .mode-card__actions .btn {
+    padding: 0.4rem 0.7rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+}
+
+/* ---------- Dev: no-scroll guard badge ---------- */
+/* useNoScrollGuard stamps [data-overflow] on <html> (DEV only) when content
+   spills past the non-scrolling viewport. This makes it impossible to miss. */
+:root[data-overflow]::after {
+  content: "⚠ off-screen content — see console";
+  position: fixed;
+  z-index: 9999;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0.4rem 0.75rem;
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+  color: #fff;
+  background: var(--terracotta);
+  pointer-events: none;
 }

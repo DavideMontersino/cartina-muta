@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { GameScreen } from "./components/GameScreen";
 import { HomeScreen } from "./components/HomeScreen";
 import { LoadingScreen } from "./components/LoadingScreen";
+import { useNoScrollGuard } from "./dev/useNoScrollGuard";
 import type { GameConfig, GameMode } from "./game/engine";
 import { getProvince, loadMap } from "./maps/registry";
 
@@ -16,6 +17,9 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   // Bumped to remount GameScreen for a fresh run of the same province+mode.
   const [runKey, setRunKey] = useState(0);
+
+  // Dev-only: warn loudly if any screen spills off the (non-scrolling) viewport.
+  useNoScrollGuard();
 
   // When a province is chosen, lazily load its border geometry, then play.
   useEffect(() => {
