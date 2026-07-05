@@ -19,6 +19,7 @@ import type {
   ActionLogEntry,
   ScoreSubmissionPayload,
 } from "../leaderboard/types";
+import { HamburgerMenu } from "./HamburgerMenu";
 import { MapCanvas } from "./MapCanvas";
 import { ResultCard } from "./ResultCard";
 
@@ -336,6 +337,10 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
           >
             ← Menu
           </button>
+          <HamburgerMenu
+            provinceId={config.map.id}
+            provinceName={config.map.name}
+          />
           <div
             className={`energy-bar ${state.energy <= 25 ? "energy-bar--low" : ""}`}
             aria-hidden
@@ -372,6 +377,8 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
           <ResultCard
             state={state}
             submission={submission}
+            provinceId={config.map.id}
+            provinceName={config.map.name}
             onRestart={onRestart}
             onExit={onExit}
           />
@@ -383,9 +390,15 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   return (
     <div className="game">
       <header className="hud">
-        <button type="button" className="btn btn--ghost" onClick={onExit}>
-          ← Menu
-        </button>
+        <div className="hud__left">
+          <button type="button" className="btn btn--ghost" onClick={onExit}>
+            ← Menu
+          </button>
+          <HamburgerMenu
+            provinceId={config.map.id}
+            provinceName={config.map.name}
+          />
+        </div>
         <div className="hud__stats">
           <div className="stat">
             <span className="stat__value">{state.found}</span>
@@ -453,6 +466,8 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
         <ResultCard
           state={state}
           submission={submission}
+          provinceId={config.map.id}
+          provinceName={config.map.name}
           onRestart={onExit}
           onExit={onExit}
         />

@@ -1,10 +1,14 @@
+import { useState } from "react";
 import type { GameState } from "../game/engine";
 import type { ScoreSubmissionPayload } from "../leaderboard/types";
+import { LeaderboardPanel } from "./LeaderboardPanel";
 import { SignInCard } from "./SignInCard";
 
 interface ResultCardProps {
   state: GameState;
   submission: ScoreSubmissionPayload | null;
+  provinceId: string;
+  provinceName: string;
   onRestart: () => void;
   onExit: () => void;
 }
@@ -19,9 +23,12 @@ function formatClock(totalSeconds: number): string {
 export function ResultCard({
   state,
   submission,
+  provinceId,
+  provinceName,
   onRestart,
   onExit,
 }: ResultCardProps) {
+  const [showBoard, setShowBoard] = useState(false);
   const total = state.map.features.length;
   const isEnergy = state.mode.kind === "energy";
   const perfect = state.found === total && state.mistakes === 0;
@@ -71,6 +78,21 @@ export function ResultCard({
           </div>
         </div>
         <SignInCard submission={submission} />
+        <button
+          type="button"
+          className="btn btn--ghost result-card__board-toggle"
+          onClick={() => setShowBoard((v) => !v)}
+        >
+          {showBoard ? "Nascondi classifica" : "Vedi classifica"}
+        </button>
+        {showBoard && (
+          <div className="result-card__board">
+            <LeaderboardPanel
+              provinceId={provinceId}
+              provinceName={provinceName}
+            />
+          </div>
+        )}
         <div className="result-card__actions">
           <button
             type="button"

@@ -342,6 +342,12 @@ button {
   justify-content: space-between;
   gap: 1rem;
 }
+.hud__left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 0 0 auto;
+}
 .hud__stats {
   display: flex;
   gap: 1.5rem;
@@ -815,6 +821,15 @@ button {
 .result-card__actions .btn {
   width: 100%;
 }
+.result-card__board-toggle {
+  width: 100%;
+  margin-top: 0.6rem;
+}
+.result-card__board {
+  margin-top: 0.75rem;
+  max-height: 40vh;
+  overflow-y: auto;
+}
 
 .signin__hint--center {
   text-align: center;
@@ -839,12 +854,15 @@ button {
   font-size: 0.85rem;
   color: var(--ink-soft);
 }
-/* In the wizard the auth control lives inside the top bar, in flow, so it sits
-   opposite the brand/back button instead of floating over the heading. */
-.wizard__bar .auth-menu {
+/* Inside the hamburger dropdown the auth control lives in flow (stacked with
+   the other menu items), not floating absolutely over the heading. */
+.hamburger-popover .auth-menu {
   position: relative;
   top: auto;
   right: auto;
+  padding-bottom: 0.6rem;
+  margin-bottom: 0.2rem;
+  border-bottom: 1px solid var(--paper-edge);
 }
 .auth-menu__name {
   font-weight: 500;
@@ -880,6 +898,111 @@ button {
   border-top: none;
   padding: 0;
   margin: 0;
+}
+
+/* ---------- Hamburger menu ---------- */
+.hamburger-menu {
+  position: relative;
+}
+.hamburger-menu__btn {
+  border: 1px solid var(--paper-edge);
+  background: var(--paper-2);
+  color: var(--ink-soft);
+  border-radius: 999px;
+  width: 2.2rem;
+  height: 2.2rem;
+  font-size: 1.05rem;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+.hamburger-menu__btn:hover {
+  color: var(--ink);
+  border-color: var(--ink-soft);
+}
+.hamburger-popover {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  width: min(240px, 80vw);
+  background: var(--paper);
+  border: 1px solid var(--paper-edge);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  padding: 0.75rem;
+  text-align: left;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.hamburger-popover__item {
+  border: 1px solid var(--paper-edge);
+  background: var(--paper-2);
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-align: left;
+}
+.hamburger-popover__item:hover {
+  border-color: var(--ink-soft);
+}
+.hamburger-popover__item:disabled {
+  opacity: 0.5;
+}
+.hamburger-modal {
+  background: var(--paper);
+  border: 1px solid var(--paper-edge);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 1.5rem;
+  width: min(420px, 100%);
+  max-height: min(80vh, 640px);
+  overflow-y: auto;
+  position: relative;
+  text-align: left;
+}
+.hamburger-modal__close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  border: none;
+  background: transparent;
+  font-size: 1.1rem;
+  color: var(--ink-soft);
+  line-height: 1;
+  padding: 0.3rem;
+}
+.hamburger-modal__close:hover {
+  color: var(--ink);
+}
+
+/* ---------- Credits panel ---------- */
+.credits__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.3rem;
+  margin: 0 0 1rem;
+}
+.credits__section {
+  margin-bottom: 1rem;
+}
+.credits__section h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 0.3rem;
+}
+.credits__section p {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  line-height: 1.5;
+  margin: 0;
+}
+.credits__section a {
+  color: var(--terracotta);
 }
 
 /* ---------- Province picker (home) ---------- */
@@ -1000,6 +1123,16 @@ button {
   padding: 1.25rem 1.1rem;
   text-align: left;
   box-shadow: var(--shadow);
+}
+/* Flattened variant used inside the result-card and hamburger modal, where
+   the surrounding container already provides the card chrome. */
+.result-card__board .leaderboard,
+.hamburger-modal .leaderboard {
+  width: 100%;
+  box-shadow: none;
+  border: none;
+  padding: 0;
+  background: none;
 }
 .leaderboard__head {
   margin-bottom: 0.75rem;

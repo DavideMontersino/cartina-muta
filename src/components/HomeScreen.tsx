@@ -3,7 +3,7 @@ import type { GameMode } from "../game/engine";
 import { TIMER_DURATIONS } from "../leaderboard/constants";
 import { getProvince, PROVINCES } from "../maps/registry";
 import type { OverviewCollection, ProvinceMeta } from "../maps/types";
-import { AuthMenu } from "./AuthMenu";
+import { HamburgerMenu } from "./HamburgerMenu";
 import { LeaderboardPanel } from "./LeaderboardPanel";
 import { ProvincePicker } from "./ProvincePicker";
 import { ProvinceSearch } from "./ProvinceSearch";
@@ -89,7 +89,10 @@ function ProvinceStep({
     <div className="wizard">
       <div className="wizard__bar">
         <p className="wizard__brand">Campanilismi</p>
-        <AuthMenu />
+        <HamburgerMenu
+          provinceId={selected?.id}
+          provinceName={selected?.name}
+        />
       </div>
       <header className="home__head">
         <h1 className="home__title">
@@ -158,7 +161,7 @@ function ModeStep({ province, onBack, onStart }: ModeStepProps) {
         >
           ← Cambia provincia
         </button>
-        <AuthMenu />
+        <HamburgerMenu provinceId={province.id} provinceName={province.name} />
       </div>
       <header className="mode-step__head">
         <div className="mode-step__heading">
