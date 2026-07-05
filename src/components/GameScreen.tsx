@@ -447,6 +447,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
           flashIndex={flashIndex}
           revealIndex={revealIndex}
           onPick={handlePick}
+          panZoom
           interactive={playing}
         />
         {wrongIndex !== null && (

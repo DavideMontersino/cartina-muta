@@ -1,14 +1,8 @@
-import {
-  type PointerEvent as ReactPointerEvent,
-  type WheelEvent as ReactWheelEvent,
-  useCallback,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useMemo, useState } from "react";
 import type { RegionStatus } from "../game/engine";
 import { projectMap, VIEW_H, VIEW_W } from "../game/geo";
 import type { MapDefinition } from "../maps/types";
+import { usePanZoom } from "./usePanZoom";
 
 interface MapCanvasProps {
   map: MapDefinition;
@@ -19,58 +13,14 @@ interface MapCanvasProps {
   revealIndex: number | null;
   /** Fires with the clicked/tapped region's index. Correctness lives in the reducer. */
   onPick?: (index: number) => void;
-  /** Enables drag-to-pan and pinch/wheel-to-zoom (energy mode's mobile-first map). */
+  /** Enables drag-to-pan and pinch/wheel-to-zoom. */
   panZoom?: boolean;
   interactive: boolean;
 }
 
-const MIN_SCALE = 1;
-const MAX_SCALE = 6;
-/** Pointer movement below this (px, in screen space) counts as a tap, not a pan drag. */
-const TAP_MOVE_THRESHOLD_PX = 8;
 /** viewBox centre — pan/zoom scale about this so zooming keeps the map centred. */
 const CENTER_X = VIEW_W / 2;
 const CENTER_Y = VIEW_H / 2;
-
-const clamp = (n: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, n));
-
-/**
- * Pan (in viewBox units) and zoom applied to the map content. Kept as an inner
- * SVG `<g>` transform — NOT a CSS transform on the <svg>. Guesses are resolved
- * by which comune path the browser hit-tests under the pointer, so there is no
- * screen→lon/lat inversion to get wrong (WebKit's getScreenCTM() ignores CSS
- * transforms on the SVG element, which used to corrupt every energy-mode tap).
- */
-interface Transform {
-  x: number;
-  y: number;
-  scale: number;
-}
-
-type Gesture =
-  | {
-      kind: "pan";
-      startTransform: Transform;
-      startClient: { x: number; y: number };
-      /** viewBox units per client px (getScreenCTM scale) at gesture start. */
-      viewScale: number;
-      /** Region index under the finger at press time — dispatched if this stays a tap. */
-      downIndex: number | null;
-      moved: boolean;
-    }
-  | {
-      kind: "pinch";
-      startTransform: Transform;
-      startDistance: number;
-    };
-
-/** Reads the comune index off the nearest ancestor path with a data-index. */
-function indexUnder(target: EventTarget | null): number | null {
-  const el = (target as Element | null)?.closest?.("[data-index]");
-  const raw = el?.getAttribute("data-index");
-  return raw === null || raw === undefined ? null : Number(raw);
-}
 
 export function MapCanvas({
   map,
@@ -84,103 +34,13 @@ export function MapCanvas({
   const projected = useMemo(() => projectMap(map), [map]);
   const shapes = projected.features;
   const [hover, setHover] = useState<number | null>(null);
-  const svgRef = useRef<SVGSVGElement | null>(null);
 
-  const [transform, setTransform] = useState<Transform>({
-    x: 0,
-    y: 0,
-    scale: 1,
+  const { svgRef, transformAttr, style, handlers } = usePanZoom({
+    enabled: panZoom && interactive,
+    centerX: CENTER_X,
+    centerY: CENTER_Y,
+    onTap: onPick,
   });
-  const pointers = useRef(new Map<number, { x: number; y: number }>());
-  const gesture = useRef<Gesture | null>(null);
-
-  const handlePointerDown = useCallback(
-    (e: ReactPointerEvent<SVGSVGElement>) => {
-      if (!panZoom || !interactive) return;
-      (e.target as Element).setPointerCapture?.(e.pointerId);
-      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
-      if (pointers.current.size === 1) {
-        gesture.current = {
-          kind: "pan",
-          startTransform: transform,
-          startClient: { x: e.clientX, y: e.clientY },
-          viewScale: svgRef.current?.getScreenCTM()?.a || 1,
-          downIndex: indexUnder(e.target),
-          moved: false,
-        };
-      } else if (pointers.current.size === 2) {
-        const [a, b] = [...pointers.current.values()];
-        gesture.current = {
-          kind: "pinch",
-          startTransform: transform,
-          startDistance: Math.hypot(a.x - b.x, a.y - b.y),
-        };
-      }
-    },
-    [panZoom, interactive, transform],
-  );
-
-  const handlePointerMove = useCallback(
-    (e: ReactPointerEvent<SVGSVGElement>) => {
-      if (!panZoom || !gesture.current || !pointers.current.has(e.pointerId))
-        return;
-      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      const g = gesture.current;
-
-      if (g.kind === "pan" && pointers.current.size === 1) {
-        const dx = e.clientX - g.startClient.x;
-        const dy = e.clientY - g.startClient.y;
-        if (Math.hypot(dx, dy) > TAP_MOVE_THRESHOLD_PX) g.moved = true;
-        // Pan lives in viewBox units (the <g> transform space), so scale the
-        // client-px drag back into viewBox units via the getScreenCTM factor.
-        setTransform({
-          ...g.startTransform,
-          x: g.startTransform.x + dx / g.viewScale,
-          y: g.startTransform.y + dy / g.viewScale,
-        });
-      } else if (g.kind === "pinch" && pointers.current.size === 2) {
-        const [a, b] = [...pointers.current.values()];
-        const distance = Math.hypot(a.x - b.x, a.y - b.y);
-        const scale = clamp(
-          g.startTransform.scale * (distance / g.startDistance),
-          MIN_SCALE,
-          MAX_SCALE,
-        );
-        setTransform({ ...g.startTransform, scale });
-      }
-    },
-    [panZoom],
-  );
-
-  const handlePointerUp = useCallback(
-    (e: ReactPointerEvent<SVGSVGElement>) => {
-      const g = gesture.current;
-      pointers.current.delete(e.pointerId);
-      if (pointers.current.size === 0) gesture.current = null;
-      // A clean tap (no pan drift) on a comune counts as a guess for that comune.
-      if (panZoom && interactive && g?.kind === "pan" && !g.moved) {
-        const index = g.downIndex ?? indexUnder(e.target);
-        if (index !== null && Number.isInteger(index)) onPick?.(index);
-      }
-    },
-    [panZoom, interactive, onPick],
-  );
-
-  const handleWheel = useCallback(
-    (e: ReactWheelEvent<SVGSVGElement>) => {
-      if (!panZoom || !interactive) return;
-      setTransform((t) => ({
-        ...t,
-        scale: clamp(
-          t.scale * (e.deltaY < 0 ? 1.15 : 1 / 1.15),
-          MIN_SCALE,
-          MAX_SCALE,
-        ),
-      }));
-    },
-    [panZoom, interactive],
-  );
 
   return (
     <svg
@@ -190,21 +50,11 @@ export function MapCanvas({
       role="img"
       aria-label={map.name}
       preserveAspectRatio="xMidYMid meet"
-      style={panZoom ? { touchAction: "none" } : undefined}
-      onPointerDown={panZoom ? handlePointerDown : undefined}
-      onPointerMove={panZoom ? handlePointerMove : undefined}
-      onPointerUp={panZoom ? handlePointerUp : undefined}
-      onPointerCancel={panZoom ? handlePointerUp : undefined}
-      onWheel={panZoom ? handleWheel : undefined}
+      style={panZoom ? style : undefined}
+      {...handlers}
     >
       <title>{map.name}</title>
-      <g
-        transform={
-          panZoom
-            ? `translate(${transform.x + CENTER_X} ${transform.y + CENTER_Y}) scale(${transform.scale}) translate(${-CENTER_X} ${-CENTER_Y})`
-            : undefined
-        }
-      >
+      <g transform={panZoom ? transformAttr : undefined}>
         <g>
           {shapes.map((s, i) => {
             const st = status[i];
