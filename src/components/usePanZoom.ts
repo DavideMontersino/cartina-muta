@@ -119,10 +119,14 @@ export function usePanZoom({
         if (Math.hypot(dx, dy) > TAP_MOVE_THRESHOLD_PX) g.moved = true;
         // Pan lives in viewBox units (the <g> transform space), so scale the
         // client-px drag back into viewBox units via the getScreenCTM factor.
+        const rawX = g.startTransform.x + dx / g.viewScale;
+        const rawY = g.startTransform.y + dy / g.viewScale;
+        const boundX = centerX * g.startTransform.scale;
+        const boundY = centerY * g.startTransform.scale;
         setTransform({
           ...g.startTransform,
-          x: g.startTransform.x + dx / g.viewScale,
-          y: g.startTransform.y + dy / g.viewScale,
+          x: clamp(rawX, -boundX, boundX),
+          y: clamp(rawY, -boundY, boundY),
         });
       } else if (g.kind === "pinch" && pointers.current.size === 2) {
         const [a, b] = [...pointers.current.values()];
@@ -132,7 +136,14 @@ export function usePanZoom({
           minScale,
           maxScale,
         );
-        setTransform({ ...g.startTransform, scale });
+        const boundX = centerX * scale;
+        const boundY = centerY * scale;
+        setTransform({
+          ...g.startTransform,
+          scale,
+          x: clamp(g.startTransform.x, -boundX, boundX),
+          y: clamp(g.startTransform.y, -boundY, boundY),
+        });
       }
     },
     [enabled, minScale, maxScale],
@@ -155,16 +166,23 @@ export function usePanZoom({
   const handleWheel = useCallback(
     (e: ReactWheelEvent<SVGSVGElement>) => {
       if (!enabled) return;
-      setTransform((t) => ({
-        ...t,
-        scale: clamp(
+      setTransform((t) => {
+        const scale = clamp(
           t.scale * (e.deltaY < 0 ? 1.15 : 1 / 1.15),
           minScale,
           maxScale,
-        ),
-      }));
+        );
+        const boundX = centerX * scale;
+        const boundY = centerY * scale;
+        return {
+          ...t,
+          scale,
+          x: clamp(t.x, -boundX, boundX),
+          y: clamp(t.y, -boundY, boundY),
+        };
+      });
     },
-    [enabled, minScale, maxScale],
+    [enabled, minScale, maxScale, centerX, centerY],
   );
 
   // transformAttr/style reflect the current transform whenever the caller opts
