@@ -512,28 +512,38 @@ button {
   stroke-width: 2px;
 }
 
-.wrong-label {
+/* Wrong-guess name reveal — a fixed overlay in the lower third of the
+   screen, never on top of the tapped region, held long enough to read. */
+.wrong-name-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 12%;
+  transform: translateX(-50%);
+  z-index: 5;
+  max-width: min(90%, 32rem);
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  background: var(--paper);
+  border: 1px solid var(--paper-edge);
+  box-shadow: var(--shadow);
+  color: var(--terracotta);
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 15px;
-  fill: var(--terracotta);
-  text-anchor: middle;
-  dominant-baseline: middle;
-  paint-order: stroke;
-  stroke: rgba(242, 233, 214, 0.92);
-  stroke-width: 4px;
-  animation: wrong-label-fade 1.3s ease forwards;
+  font-size: clamp(0.9rem, 2.6vw, 1.05rem);
+  text-align: center;
+  pointer-events: none;
+  animation: wrong-name-toast-fade 2.4s ease forwards;
 }
-@keyframes wrong-label-fade {
+@keyframes wrong-name-toast-fade {
   0% {
     opacity: 0;
-    transform: translateY(3px);
+    transform: translateX(-50%) translateY(6px);
   }
-  15% {
+  10% {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(-50%) translateY(0);
   }
-  75% {
+  85% {
     opacity: 1;
   }
   100% {

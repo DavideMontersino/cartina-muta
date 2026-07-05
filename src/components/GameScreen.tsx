@@ -120,10 +120,19 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   }, [playing]);
 
   // On a wrong region-index guess (timer/complete modes): flash the region
-  // red briefly and surface its name a little longer so the player can read
-  // what they actually clicked.
+  // red briefly on the map, and surface its name in a fixed overlay (lower
+  // third of the screen, never on top of the region itself) for long enough
+  // to actually read it. A correct guess clears any still-pending wrong-guess
+  // overlay right away, so it can't linger into the next round.
   useEffect(() => {
-    if (!state.feedback || state.feedback.correct) return;
+    if (!state.feedback) return;
+    if (state.feedback.correct) {
+      window.clearTimeout(flashTimer.current);
+      window.clearTimeout(wrongTimer.current);
+      setFlashIndex(null);
+      setWrongIndex(null);
+      return;
+    }
     if (state.feedback.index === null) return;
     const { index, id } = state.feedback;
     setFlashIndex(index);
@@ -132,7 +141,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
     window.clearTimeout(flashTimer.current);
     window.clearTimeout(wrongTimer.current);
     flashTimer.current = window.setTimeout(() => setFlashIndex(null), 550);
-    wrongTimer.current = window.setTimeout(() => setWrongIndex(null), 1300);
+    wrongTimer.current = window.setTimeout(() => setWrongIndex(null), 2400);
   }, [state.feedback]);
 
   // Energy mode: after the round auto-resolves (3rd miss), briefly pulse the
@@ -262,13 +271,16 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
             map={config.map}
             status={state.status}
             flashIndex={flashIndex}
-            wrongIndex={wrongIndex}
-            wrongKey={wrongKey}
             revealIndex={revealIndex}
             onPick={handlePick}
             panZoom
             interactive={playing}
           />
+          {wrongIndex !== null && (
+            <div key={wrongKey} className="wrong-name-toast">
+              {config.map.features[wrongIndex].name}
+            </div>
+          )}
           {energyToast && (
             <div
               key={energyToast.id}
@@ -420,12 +432,15 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
           map={config.map}
           status={state.status}
           flashIndex={flashIndex}
-          wrongIndex={wrongIndex}
-          wrongKey={wrongKey}
           revealIndex={revealIndex}
           onPick={handlePick}
           interactive={playing}
         />
+        {wrongIndex !== null && (
+          <div key={wrongKey} className="wrong-name-toast">
+            {config.map.features[wrongIndex].name}
+          </div>
+        )}
         <div className="progress-bar" aria-hidden>
           <div
             className="progress-bar__fill"

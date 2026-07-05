@@ -15,11 +15,6 @@ interface MapCanvasProps {
   status: RegionStatus[];
   /** Index currently flashing red after a wrong guess, or null. */
   flashIndex: number | null;
-  /** Index whose name to reveal briefly after a wrong guess, or null. */
-  wrongIndex: number | null;
-  /** Changes on every wrong guess so the label remounts and its fade
-   * animation restarts, even for repeated rapid-fire wrong guesses. */
-  wrongKey: number;
   /** Index to briefly reveal after a skip, or null. */
   revealIndex: number | null;
   /** Fires with the clicked/tapped region's index. Correctness lives in the reducer. */
@@ -81,8 +76,6 @@ export function MapCanvas({
   map,
   status,
   flashIndex,
-  wrongIndex,
-  wrongKey,
   revealIndex,
   onPick,
   panZoom = false,
@@ -258,17 +251,6 @@ export function MapCanvas({
             ) : null,
           )}
         </g>
-        {wrongIndex !== null && (
-          <text
-            key={wrongKey}
-            x={shapes[wrongIndex].cx}
-            y={shapes[wrongIndex].cy}
-            className="wrong-label"
-            pointerEvents="none"
-          >
-            {map.features[wrongIndex].name}
-          </text>
-        )}
       </g>
     </svg>
   );
