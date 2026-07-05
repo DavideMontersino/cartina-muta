@@ -189,6 +189,9 @@ export function usePanZoom({
   // in (independent of `enabled`), so toggling `enabled` off — e.g. a game
   // finishing — freezes the last pan/zoom in place instead of snapping back.
   const transformAttr = `translate(${transform.x + centerX} ${transform.y + centerY}) scale(${transform.scale}) translate(${-centerX} ${-centerY})`;
+  // CSS-compatible version: CSS `translate()` needs commas and px units.
+  // Used as an inline style so CSS `transition` can animate it.
+  const transformCss = `translate(${transform.x + centerX}px, ${transform.y + centerY}px) scale(${transform.scale}) translate(${-centerX}px, ${-centerY}px)`;
   const style = { touchAction: "none" as const };
 
   return {
@@ -196,6 +199,7 @@ export function usePanZoom({
     transform,
     setTransform,
     transformAttr,
+    transformCss,
     style,
     handlers: {
       onPointerDown: enabled ? handlePointerDown : undefined,

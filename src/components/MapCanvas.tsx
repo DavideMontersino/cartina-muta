@@ -46,7 +46,7 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
     const shapes = projected.features;
     const [hover, setHover] = useState<number | null>(null);
 
-    const { svgRef, transformAttr, style, handlers, setTransform } = usePanZoom(
+    const { svgRef, transformCss, style, handlers, setTransform } = usePanZoom(
       {
         enabled: panZoom && interactive && !isAnimating,
         centerX: CENTER_X,
@@ -80,7 +80,7 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
         {...handlers}
       >
         <title>{map.name}</title>
-        <g transform={panZoom ? transformAttr : undefined}>
+        <g style={panZoom ? { transform: transformCss, transformOrigin: '0 0' } : undefined}>
           <g>
             {shapes.map((s, i) => {
               const st = status[i];
