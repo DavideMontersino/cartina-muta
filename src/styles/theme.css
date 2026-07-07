@@ -1405,8 +1405,8 @@ button {
 }
 
 /* ---------- Pending-score saved banner ---------- */
-/* Shown briefly after a score stashed before a magic-link sign-in is flushed
-   once the player lands back signed in (see leaderboard/useFlushPendingScore). */
+/* Shown briefly after a score parked before a magic-link sign-in is claimed
+   once the player lands back signed in (see leaderboard/useClaimPendingScores). */
 .score-saved-banner {
   position: fixed;
   top: 1rem;

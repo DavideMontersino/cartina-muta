@@ -79,7 +79,7 @@ export function SignInCard({ submission }: SignInCardProps) {
 
   return (
     <MagicLinkForm
-      hint="Salva il punteggio: ti mandiamo un link via email"
+      hint="Per salvare il punteggio ti inviamo un link via email: aprilo per confermare e comparire in classifica."
       showName
       pendingSubmission={submission}
     />

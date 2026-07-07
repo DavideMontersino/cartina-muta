@@ -53,6 +53,10 @@ export function createAuth(env: AuthEnv, request?: Request) {
     },
     plugins: [
       magicLink({
+        // 1 hour (default is 5 min): a player who finishes a game and checks
+        // email a bit later can still open the link and have their parked
+        // score claimed. The result-screen copy states this window.
+        expiresIn: 60 * 60,
         sendMagicLink: async ({ email, url }) =>
           sendEmail(env, {
             to: email,

@@ -1,94 +1,50 @@
-import type { ScoreSubmissionPayload } from "./types";
+// SQL and policy for pending (unverified) scores — the server-side holding
+// area that lets a signed-out player's finished game survive until they prove
+// their email with a magic-link sign-in. Shared by the two endpoints
+// (functions/api/pending-scores.ts, functions/api/claim.ts) and exercised
+// directly in pendingScore.test.ts, so the stored/claimed shapes can't drift.
+//
+// See migrations/0005_pending_score.sql for the table these operate on.
 
-// A completed game's score is held only in React memory until it's POSTed to
-// /api/scores. A signed-out player who finishes a game and *then* signs in via
-// magic link loses that score: clicking the emailed link reloads the app on a
-// fresh page, discarding the in-memory submission before it can be sent. To
-// bridge that redirect we stash the submission in localStorage when the player
-// starts the magic-link flow, and flush it once they land back signed in.
-
-const KEY = "campanilismi:pendingScore";
-// Don't resurrect a score the player abandoned long ago: a stash is only
-// flushed if the magic-link round-trip completes within this window.
-const MAX_AGE_MS = 24 * 60 * 60 * 1000;
-
-interface StoredPendingScore {
-  savedAt: number;
-  payload: ScoreSubmissionPayload;
-}
-
-/** The subset of the Web Storage API we use — injectable so this is testable. */
-export type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
-
-function defaultStorage(): StorageLike | null {
-  try {
-    // Missing on the server / in the node test env; access can also throw in
-    // sandboxed iframes or Safari private mode.
-    return globalThis.localStorage ?? null;
-  } catch {
-    return null;
-  }
-}
-
-/** Stash a completed game's score so it survives the magic-link redirect. */
-export function savePendingScore(
-  payload: ScoreSubmissionPayload,
-  storage: StorageLike | null = defaultStorage(),
-): void {
-  if (!storage) return;
-  const record: StoredPendingScore = { savedAt: Date.now(), payload };
-  try {
-    storage.setItem(KEY, JSON.stringify(record));
-  } catch {
-    // Quota exceeded / storage disabled — not worth crashing the sign-in over.
-  }
-}
+/** How long an unclaimed pending score lives before it's swept. */
+export const PENDING_SCORE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /**
- * Return a stashed score if one is present and still fresh, else null. Corrupt
- * or expired records are treated as absent and cleared so they can't linger.
+ * Most pending rows kept per email. Bounds both storage and how many scores a
+ * single sign-in can claim, so a flood of submissions against someone else's
+ * address can't balloon (the board only ever surfaces each user's best row
+ * anyway). Newest rows win.
  */
-export function loadPendingScore(
-  storage: StorageLike | null = defaultStorage(),
-  now: number = Date.now(),
-): ScoreSubmissionPayload | null {
-  if (!storage) return null;
-  let raw: string | null;
-  try {
-    raw = storage.getItem(KEY);
-  } catch {
-    return null;
-  }
-  if (!raw) return null;
-  try {
-    const record = JSON.parse(raw) as StoredPendingScore;
-    if (
-      !record ||
-      typeof record.savedAt !== "number" ||
-      !record.payload ||
-      typeof record.payload !== "object"
-    ) {
-      clearPendingScore(storage);
-      return null;
-    }
-    if (now - record.savedAt > MAX_AGE_MS) {
-      clearPendingScore(storage);
-      return null;
-    }
-    return record.payload;
-  } catch {
-    clearPendingScore(storage);
-    return null;
-  }
+export const MAX_PENDING_PER_EMAIL = 25;
+
+/** Normalize an email the same way for storage and lookup (trim + lowercase). */
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
 }
 
-export function clearPendingScore(
-  storage: StorageLike | null = defaultStorage(),
-): void {
-  if (!storage) return;
-  try {
-    storage.removeItem(KEY);
-  } catch {
-    // ignore
-  }
-}
+export const INSERT_PENDING_SCORE_SQL = `INSERT INTO "pending_score"
+  ("id","email","provinceId","modeKind","modeDurationSeconds","totalRegions","found","missed","mistakes","elapsedMs","score","actionLog","createdAt")
+ VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)`;
+
+/** Sweep every pending row older than the TTL (param: cutoff = now − TTL). */
+export const DELETE_EXPIRED_PENDING_SQL = `DELETE FROM "pending_score" WHERE "createdAt" < ?1`;
+
+/** Trim one email's pending rows to the newest MAX_PENDING_PER_EMAIL (params: email, cap). */
+export const CAP_PENDING_PER_EMAIL_SQL = `DELETE FROM "pending_score"
+ WHERE "email" = ?1 AND "id" NOT IN (
+   SELECT "id" FROM "pending_score" WHERE "email" = ?1 ORDER BY "createdAt" DESC LIMIT ?2
+ )`;
+
+// Migrate a verified user's still-fresh pending scores into game_result, then
+// drop all their pending rows. game_result.id reuses pending_score.id and the
+// insert is OR IGNORE, so a concurrent or repeated claim can't create
+// duplicates. Email is compared case-insensitively in case Better Auth stored
+// the user's address with different casing than we parked it under.
+export const CLAIM_INSERT_SQL = `INSERT OR IGNORE INTO "game_result"
+  ("id","userId","provinceId","modeKind","modeDurationSeconds","totalRegions","found","missed","mistakes","elapsedMs","score","actionLog","createdAt")
+ SELECT ps."id", ?1, ps."provinceId", ps."modeKind", ps."modeDurationSeconds", ps."totalRegions", ps."found", ps."missed", ps."mistakes", ps."elapsedMs", ps."score", ps."actionLog", ps."createdAt"
+ FROM "pending_score" ps
+ WHERE lower(ps."email") = lower(?2) AND ps."createdAt" >= ?3`;
+
+/** Params: userId, email, cutoff (= now − TTL). */
+export const CLAIM_DELETE_SQL = `DELETE FROM "pending_score" WHERE lower("email") = lower(?1)`;

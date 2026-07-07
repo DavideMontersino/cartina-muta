@@ -4,7 +4,7 @@ import { HomeScreen } from "./components/HomeScreen";
 import { LoadingScreen } from "./components/LoadingScreen";
 import { useNoScrollGuard } from "./dev/useNoScrollGuard";
 import type { GameConfig, GameMode } from "./game/engine";
-import { useFlushPendingScore } from "./leaderboard/useFlushPendingScore";
+import { useClaimPendingScores } from "./leaderboard/useClaimPendingScores";
 import { getProvince, loadMap } from "./maps/registry";
 
 interface Selection {
@@ -22,9 +22,9 @@ export function App() {
   // Dev-only: warn loudly if any screen spills off the (non-scrolling) viewport.
   useNoScrollGuard();
 
-  // Flush a score stashed before a magic-link sign-in (see the hook) once the
+  // Claim a score parked before a magic-link sign-in (see the hook) once the
   // player lands back signed in — and confirm it with a brief banner.
-  const scoreSaved = useFlushPendingScore();
+  const scoreSaved = useClaimPendingScores();
 
   // When a province is chosen, lazily load its border geometry, then play.
   useEffect(() => {

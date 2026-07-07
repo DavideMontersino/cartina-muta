@@ -1,7 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { signIn } from "../auth/client";
 import { isValidEmail, validateSignIn } from "../auth/validation";
-import { savePendingScore } from "../leaderboard/pendingScore";
+import { submitPendingScore } from "../leaderboard/client";
 import type { ScoreSubmissionPayload } from "../leaderboard/types";
 
 type Status = "idle" | "sending" | "sent" | "error";
@@ -11,9 +11,10 @@ interface MagicLinkFormProps {
   /** Show the leaderboard-name field (result screen). Login popover omits it. */
   showName?: boolean;
   /**
-   * A just-finished game's score to record. Stashed when the sign-in email is
-   * sent so it survives the magic-link redirect and is submitted on return —
-   * without this the score would be lost (see leaderboard/pendingScore.ts).
+   * A just-finished game's score to record. Parked server-side against the
+   * entered email before the magic link is sent, then revealed on the
+   * leaderboard once the player opens that link (see leaderboard/pendingScore.ts
+   * and functions/api/claim.ts).
    */
   pendingSubmission?: ScoreSubmissionPayload | null;
 }
@@ -62,6 +63,17 @@ export function MagicLinkForm({
     setStatus("sending");
     setMessage("");
     try {
+      // Park the score first, so a successful "sent" state always means the
+      // score is safely queued to appear once the link is opened. If parking
+      // fails, stop here rather than sending a link that would save nothing.
+      if (pendingSubmission) {
+        const parked = await submitPendingScore(cleanEmail, pendingSubmission);
+        if (!parked.ok) {
+          setStatus("error");
+          setMessage(parked.error);
+          return;
+        }
+      }
       const res = await signIn.magicLink({
         email: cleanEmail,
         ...(cleanName ? { name: cleanName } : {}),
@@ -72,9 +84,6 @@ export function MagicLinkForm({
         setMessage(res.error.message || "Invio non riuscito. Riprova.");
         return;
       }
-      // Stash the finished game's score so it survives the magic-link redirect
-      // (a fresh app load) and gets submitted once the player lands signed in.
-      if (pendingSubmission) savePendingScore(pendingSubmission);
       setStatus("sent");
       setMessage(cleanEmail);
     } catch {
@@ -85,12 +94,23 @@ export function MagicLinkForm({
 
   if (status === "sent") {
     return (
-      <p className="signin__hint signin__hint--center">
-        Controlla la tua email <strong>{message}</strong> e tocca il link per{" "}
-        {pendingSubmission
-          ? "salvare il punteggio in classifica."
-          : "continuare."}
-      </p>
+      <div className="signin signin--done">
+        {pendingSubmission ? (
+          <p className="signin__hint signin__hint--center">
+            Ti abbiamo inviato un'email a <strong>{message}</strong>.{" "}
+            <strong>
+              Apri quel link entro un'ora per far comparire il punteggio in
+              classifica.
+            </strong>{" "}
+            Finché non lo apri, il punteggio resta in attesa e non è visibile.
+          </p>
+        ) : (
+          <p className="signin__hint signin__hint--center">
+            Controlla la tua email <strong>{message}</strong> e tocca il link
+            per continuare.
+          </p>
+        )}
+      </div>
     );
   }
 
