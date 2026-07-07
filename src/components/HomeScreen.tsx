@@ -151,6 +151,9 @@ interface ModeStepProps {
 }
 
 function ModeStep({ province, onBack, onStart }: ModeStepProps) {
+  const [timerSeconds, setTimerSeconds] = useState<number>(
+    TIMER_OPTIONS[0].seconds,
+  );
   return (
     <div className="wizard">
       <div className="wizard__bar">
@@ -201,21 +204,29 @@ function ModeStep({ province, onBack, onStart }: ModeStepProps) {
                 Quanti comuni riesci a trovare prima dello scadere?
               </p>
               <div className="mode-card__actions">
-                {TIMER_OPTIONS.map((opt) => (
-                  <button
-                    type="button"
-                    key={opt.seconds}
-                    className="btn btn--primary"
-                    onClick={() =>
-                      onStart({
-                        kind: "timer",
-                        durationSeconds: opt.seconds,
-                      })
-                    }
+                <label className="select">
+                  <span className="select__label">Durata</span>
+                  <select
+                    className="select__input"
+                    value={timerSeconds}
+                    onChange={(e) => setTimerSeconds(Number(e.target.value))}
                   >
-                    {opt.label}
-                  </button>
-                ))}
+                    {TIMER_OPTIONS.map((opt) => (
+                      <option key={opt.seconds} value={opt.seconds}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() =>
+                    onStart({ kind: "timer", durationSeconds: timerSeconds })
+                  }
+                >
+                  Inizia
+                </button>
               </div>
             </section>
 
