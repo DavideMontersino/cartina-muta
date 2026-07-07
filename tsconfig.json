@@ -18,5 +18,5 @@
     "noFallthroughCasesInSwitch": true,
     "types": ["node", "vite/client", "vitest/globals", "@cloudflare/workers-types"]
   },
-  "include": ["src", "scripts", "vite.config.ts", "functions"]
+  "include": ["src", "scripts", "vite.config.ts", "functions", "workers"]
 }
