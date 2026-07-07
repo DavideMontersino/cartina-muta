@@ -77,5 +77,11 @@ export function SignInCard({ submission }: SignInCardProps) {
     return <NamePrompt />;
   }
 
-  return <MagicLinkForm hint="Salva il tuo nome per la classifica" showName />;
+  return (
+    <MagicLinkForm
+      hint="Salva il punteggio: ti mandiamo un link via email"
+      showName
+      pendingSubmission={submission}
+    />
+  );
 }

@@ -1404,6 +1404,46 @@ button {
   }
 }
 
+/* ---------- Pending-score saved banner ---------- */
+/* Shown briefly after a score stashed before a magic-link sign-in is flushed
+   once the player lands back signed in (see leaderboard/useFlushPendingScore). */
+.score-saved-banner {
+  position: fixed;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  max-width: min(90%, 32rem);
+  padding: 0.6rem 1.15rem;
+  border-radius: 999px;
+  background: var(--paper);
+  border: 1px solid var(--paper-edge);
+  box-shadow: var(--shadow);
+  color: var(--olive-deep);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(0.9rem, 2.6vw, 1.05rem);
+  text-align: center;
+  pointer-events: none;
+  animation: score-saved-banner-fade 5s ease forwards;
+}
+@keyframes score-saved-banner-fade {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px);
+  }
+  6% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 /* ---------- Dev: no-scroll guard badge ---------- */
 /* useNoScrollGuard stamps [data-overflow] on <html> (DEV only) when content
    spills past the non-scrolling viewport. This makes it impossible to miss. */

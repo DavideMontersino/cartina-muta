@@ -1,6 +1,8 @@
 import { type FormEvent, useState } from "react";
 import { signIn } from "../auth/client";
 import { isValidEmail, validateSignIn } from "../auth/validation";
+import { savePendingScore } from "../leaderboard/pendingScore";
+import type { ScoreSubmissionPayload } from "../leaderboard/types";
 
 type Status = "idle" | "sending" | "sent" | "error";
 
@@ -8,6 +10,12 @@ interface MagicLinkFormProps {
   hint: string;
   /** Show the leaderboard-name field (result screen). Login popover omits it. */
   showName?: boolean;
+  /**
+   * A just-finished game's score to record. Stashed when the sign-in email is
+   * sent so it survives the magic-link redirect and is submitted on return —
+   * without this the score would be lost (see leaderboard/pendingScore.ts).
+   */
+  pendingSubmission?: ScoreSubmissionPayload | null;
 }
 
 /**
@@ -19,7 +27,11 @@ interface MagicLinkFormProps {
  * `wrangler pages dev`); on the plain Vite dev server the request fails, which
  * we surface as an error rather than crashing.
  */
-export function MagicLinkForm({ hint, showName = false }: MagicLinkFormProps) {
+export function MagicLinkForm({
+  hint,
+  showName = false,
+  pendingSubmission = null,
+}: MagicLinkFormProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<Status>("idle");
@@ -60,6 +72,9 @@ export function MagicLinkForm({ hint, showName = false }: MagicLinkFormProps) {
         setMessage(res.error.message || "Invio non riuscito. Riprova.");
         return;
       }
+      // Stash the finished game's score so it survives the magic-link redirect
+      // (a fresh app load) and gets submitted once the player lands signed in.
+      if (pendingSubmission) savePendingScore(pendingSubmission);
       setStatus("sent");
       setMessage(cleanEmail);
     } catch {
@@ -71,8 +86,10 @@ export function MagicLinkForm({ hint, showName = false }: MagicLinkFormProps) {
   if (status === "sent") {
     return (
       <p className="signin__hint signin__hint--center">
-        Controlla la tua email <strong>{message}</strong> e tocca il link per
-        continuare.
+        Controlla la tua email <strong>{message}</strong> e tocca il link per{" "}
+        {pendingSubmission
+          ? "salvare il punteggio in classifica."
+          : "continuare."}
       </p>
     );
   }

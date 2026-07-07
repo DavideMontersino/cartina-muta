@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { type ReactElement, useEffect, useState } from "react";
 import { GameScreen } from "./components/GameScreen";
 import { HomeScreen } from "./components/HomeScreen";
 import { LoadingScreen } from "./components/LoadingScreen";
 import { useNoScrollGuard } from "./dev/useNoScrollGuard";
 import type { GameConfig, GameMode } from "./game/engine";
+import { useFlushPendingScore } from "./leaderboard/useFlushPendingScore";
 import { getProvince, loadMap } from "./maps/registry";
 
 interface Selection {
@@ -20,6 +21,10 @@ export function App() {
 
   // Dev-only: warn loudly if any screen spills off the (non-scrolling) viewport.
   useNoScrollGuard();
+
+  // Flush a score stashed before a magic-link sign-in (see the hook) once the
+  // player lands back signed in — and confirm it with a brief banner.
+  const scoreSaved = useFlushPendingScore();
 
   // When a province is chosen, lazily load its border geometry, then play.
   useEffect(() => {
@@ -45,8 +50,9 @@ export function App() {
     setError(null);
   };
 
+  let screen: ReactElement;
   if (config) {
-    return (
+    screen = (
       <GameScreen
         key={runKey}
         config={config}
@@ -54,16 +60,25 @@ export function App() {
         onRestart={() => setRunKey((k) => k + 1)}
       />
     );
-  }
-
-  if (selection) {
+  } else if (selection) {
     const name = getProvince(selection.provinceId)?.name ?? "";
-    return <LoadingScreen name={name} error={error} onBack={exit} />;
+    screen = <LoadingScreen name={name} error={error} onBack={exit} />;
+  } else {
+    screen = (
+      <HomeScreen
+        onStart={(provinceId, mode) => setSelection({ provinceId, mode })}
+      />
+    );
   }
 
   return (
-    <HomeScreen
-      onStart={(provinceId, mode) => setSelection({ provinceId, mode })}
-    />
+    <>
+      {screen}
+      {scoreSaved && (
+        <div className="score-saved-banner" role="status">
+          Punteggio salvato in classifica ✓
+        </div>
+      )}
+    </>
   );
 }
