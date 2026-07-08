@@ -13,10 +13,24 @@
 
 import { generateCode } from "../../../src/multiplayer/code";
 import {
+  applyGuess,
+  buildOrder,
+  finalizeRound,
+  finishedIds,
+  isRoundOver,
+  ROOM_CONFIG,
+  type Round,
+  roundResults,
+  startRound,
+} from "../../../src/multiplayer/game";
+import {
   type ClientMessage,
   isRoundCount,
+  type RosterEntry,
   type ServerErrorCode,
   type ServerMessage,
+  type Standing,
+  type Target,
 } from "../../../src/multiplayer/protocol";
 import {
   createRoomState,
@@ -29,11 +43,20 @@ export interface Env {
   ROOMS: DurableObjectNamespace;
 }
 
+/** In-progress game state (null while in the lobby). */
+interface GameData {
+  order: Target[];
+  scores: Record<string, number>;
+  round: Round;
+  stage: "playing" | "reveal" | "finished";
+}
+
 /** Everything the DO persists, so it survives hibernation eviction. */
 interface Persisted {
   room: RoomState;
   /** Secret per-player token → public player id. Never leaves the DO. */
   tokens: Record<string, string>;
+  game: GameData | null;
 }
 
 interface Attachment {
@@ -81,6 +104,7 @@ export class Room implements DurableObject {
       await this.save({
         room: createRoomState(code, provinceId, rounds),
         tokens: {},
+        game: null,
       });
       return Response.json({ code });
     }
@@ -130,7 +154,10 @@ export class Room implements DurableObject {
       ws.serializeAttachment({ playerId } satisfies Attachment);
       data.room = reduceRoom(data.room, { type: "join", id: playerId, name });
       await this.save(data);
-      return this.broadcast(data.room);
+      this.broadcast(data.room);
+      // Mid-game reconnect: bring this socket up to the current round/reveal.
+      if (data.game) this.sendGameSnapshot(ws, data, playerId);
+      return;
     }
 
     // Every other message requires an established (post-hello) player.
@@ -152,13 +179,18 @@ export class Room implements DurableObject {
         return this.broadcast(data.room);
       }
       case "start": {
-        const before = data.room.phase;
-        data.room = reduceRoom(data.room, { type: "start", id: playerId });
-        if (data.room.phase === before && before === "lobby") {
+        if (playerId !== data.room.hostId || data.room.phase !== "lobby") {
           return this.sendError(ws, "not_host", "Only the host can start.");
         }
-        await this.save(data);
-        return this.broadcast(data.room);
+        if (!Array.isArray(msg.roster) || msg.roster.length === 0) {
+          return this.sendError(ws, "bad_message", "Missing roster.");
+        }
+        data.room = reduceRoom(data.room, { type: "start", id: playerId });
+        await this.startGame(data, msg.roster);
+        return;
+      }
+      case "guess": {
+        return this.handleGuess(data, playerId, msg.istat);
       }
       case "leave": {
         data.room = reduceRoom(data.room, { type: "leave", id: playerId });
@@ -194,13 +226,193 @@ export class Room implements DurableObject {
     data.room = reduceRoom(data.room, { type: "disconnect", id: playerId });
     await this.save(data);
     this.broadcast(data.room);
+
+    // A disconnect can complete a round if everyone still connected has finished.
+    if (
+      data.game?.stage === "playing" &&
+      isRoundOver(data.game.round, this.activeIds(data.room))
+    ) {
+      await this.endRound(data, Date.now());
+    }
   }
+
+  // ---- Gameplay ----
+
+  /** Ids of players currently connected — the set a round waits on. */
+  private activeIds(room: RoomState): string[] {
+    return room.players.filter((p) => p.connected).map((p) => p.id);
+  }
+
+  private standings(data: Persisted): Standing[] {
+    return data.room.players
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        score: data.game?.scores[p.id] ?? 0,
+      }))
+      .sort((a, b) => b.score - a.score);
+  }
+
+  private async startGame(
+    data: Persisted,
+    roster: RosterEntry[],
+  ): Promise<void> {
+    const order = buildOrder(roster, data.room.rounds);
+    const now = Date.now();
+    data.game = {
+      order,
+      scores: {},
+      round: startRound(order[0], 0, now),
+      stage: "playing",
+    };
+    await this.save(data);
+    this.broadcastRound(data);
+    await this.state.storage.setAlarm(data.game.round.endsAt);
+  }
+
+  private async handleGuess(
+    data: Persisted,
+    playerId: string,
+    istat: string,
+  ): Promise<void> {
+    const game = data.game;
+    if (game?.stage !== "playing") return;
+    const out = applyGuess(game.round, playerId, String(istat), Date.now());
+    if (out.ignored) return;
+    game.round = out.round;
+    await this.save(data);
+
+    // Private ack to the guesser; public progress to everyone.
+    this.sendTo(playerId, {
+      t: "guessAck",
+      correct: out.correct,
+      attemptsLeft: out.attemptsLeft,
+    });
+    this.broadcastServer({ t: "progress", finished: finishedIds(game.round) });
+
+    if (isRoundOver(game.round, this.activeIds(data.room))) {
+      await this.endRound(data, Date.now());
+    }
+  }
+
+  /** Close the current round → reveal, bank points, schedule the next round. */
+  private async endRound(data: Persisted, now: number): Promise<void> {
+    const game = data.game;
+    if (game?.stage !== "playing") return;
+    game.round = finalizeRound(game.round, this.activeIds(data.room), now);
+    for (const r of roundResults(game.round)) {
+      game.scores[r.id] = (game.scores[r.id] ?? 0) + r.points;
+    }
+    game.stage = "reveal";
+    await this.save(data);
+    this.broadcastServer({
+      t: "reveal",
+      round: game.round.index + 1,
+      total: game.order.length,
+      targetIstat: game.round.target.istat,
+      results: roundResults(game.round),
+      standings: this.standings(data),
+    });
+    await this.state.storage.setAlarm(now + ROOM_CONFIG.revealMs);
+  }
+
+  /** Alarm fires twice per round: to close a timed-out round, and to advance. */
+  async alarm(): Promise<void> {
+    const data = await this.data();
+    if (!data?.game) return;
+    const now = Date.now();
+    if (data.game.stage === "playing") {
+      await this.endRound(data, now);
+      return;
+    }
+    if (data.game.stage === "reveal") {
+      const nextIndex = data.game.round.index + 1;
+      if (nextIndex >= data.game.order.length) {
+        data.game.stage = "finished";
+        await this.save(data);
+        this.broadcastServer({ t: "over", standings: this.standings(data) });
+        return;
+      }
+      data.game.round = startRound(data.game.order[nextIndex], nextIndex, now);
+      data.game.stage = "playing";
+      await this.save(data);
+      this.broadcastRound(data);
+      await this.state.storage.setAlarm(data.game.round.endsAt);
+    }
+  }
+
+  /** Send the current game phase to one (re)connecting socket. */
+  private sendGameSnapshot(
+    ws: WebSocket,
+    data: Persisted,
+    playerId: string,
+  ): void {
+    const game = data.game;
+    if (!game) return;
+    if (game.stage === "finished") {
+      this.send(ws, { t: "over", standings: this.standings(data) });
+      return;
+    }
+    if (game.stage === "reveal") {
+      this.send(ws, {
+        t: "reveal",
+        round: game.round.index + 1,
+        total: game.order.length,
+        targetIstat: game.round.target.istat,
+        results: roundResults(game.round),
+        standings: this.standings(data),
+      });
+      return;
+    }
+    this.send(ws, this.roundMessage(game, playerId));
+  }
+
+  private roundMessage(game: GameData, playerId: string): ServerMessage {
+    const seat = game.round.players[playerId];
+    const attemptsLeft = seat?.finished
+      ? 0
+      : ROOM_CONFIG.maxAttempts - (seat?.attempts ?? 0);
+    return {
+      t: "round",
+      round: game.round.index + 1,
+      total: game.order.length,
+      name: game.round.target.name,
+      endsAt: game.round.endsAt,
+      attemptsLeft,
+    };
+  }
+
+  private broadcastRound(data: Persisted): void {
+    if (!data.game) return;
+    for (const socket of this.state.getWebSockets()) {
+      const att = socket.deserializeAttachment() as Attachment | null;
+      if (!att?.playerId) continue;
+      this.send(socket, this.roundMessage(data.game, att.playerId));
+    }
+  }
+
+  // ---- Messaging ----
 
   private broadcast(room: RoomState): void {
     for (const socket of this.state.getWebSockets()) {
       const att = socket.deserializeAttachment() as Attachment | null;
       if (!att?.playerId) continue;
       this.send(socket, { t: "lobby", state: toLobbyView(room, att.playerId) });
+    }
+  }
+
+  /** Send the same message to every connected socket. */
+  private broadcastServer(message: ServerMessage): void {
+    for (const socket of this.state.getWebSockets()) {
+      this.send(socket, message);
+    }
+  }
+
+  /** Send a message to every socket belonging to one player. */
+  private sendTo(playerId: string, message: ServerMessage): void {
+    for (const socket of this.state.getWebSockets()) {
+      const att = socket.deserializeAttachment() as Attachment | null;
+      if (att?.playerId === playerId) this.send(socket, message);
     }
   }
 

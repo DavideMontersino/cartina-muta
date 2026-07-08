@@ -40,11 +40,40 @@ export interface LobbyView {
   you: string;
 }
 
+/** One comune the server can ask about (host uploads this roster on start). */
+export interface RosterEntry {
+  istat: string;
+  name: string;
+  population: number;
+}
+
+/** A round's answer, server-side: which comune to find. */
+export interface Target {
+  istat: string;
+  name: string;
+}
+
+/** Per-player outcome of a resolved round. */
+export interface RoundResult {
+  id: string;
+  correct: boolean;
+  attempts: number;
+  points: number;
+}
+
+/** A row in the running standings. */
+export interface Standing {
+  id: string;
+  name: string;
+  score: number;
+}
+
 /** Client → server messages (JSON over the WebSocket). */
 export type ClientMessage =
   | { t: "hello"; token: string; name: string }
   | { t: "setConfig"; provinceId?: string; rounds?: RoundCount }
-  | { t: "start" }
+  | { t: "start"; roster: RosterEntry[] }
+  | { t: "guess"; istat: string }
   | { t: "leave" };
 
 export type ServerErrorCode =
@@ -56,7 +85,27 @@ export type ServerErrorCode =
 /** Server → client messages. */
 export type ServerMessage =
   | { t: "lobby"; state: LobbyView }
-  | { t: "error"; code: ServerErrorCode; message: string };
+  | { t: "error"; code: ServerErrorCode; message: string }
+  | {
+      t: "round";
+      round: number;
+      total: number;
+      name: string;
+      endsAt: number;
+      /** Guesses this recipient has left this round (full on a fresh round). */
+      attemptsLeft: number;
+    }
+  | { t: "guessAck"; correct: boolean; attemptsLeft: number }
+  | { t: "progress"; finished: string[] }
+  | {
+      t: "reveal";
+      round: number;
+      total: number;
+      targetIstat: string;
+      results: RoundResult[];
+      standings: Standing[];
+    }
+  | { t: "over"; standings: Standing[] };
 
 /** Response body of `POST /rooms`. */
 export interface CreateRoomResponse {

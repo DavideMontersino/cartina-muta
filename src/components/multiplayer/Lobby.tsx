@@ -5,40 +5,27 @@ import {
   ROOM_ROUND_OPTIONS,
   type RoundCount,
 } from "../../multiplayer/protocol";
-import { useRoom } from "../../multiplayer/useRoom";
+import type { RoomConnection } from "../../multiplayer/useRoom";
 import { ProvinceSearch } from "../ProvinceSearch";
 import { QRCode } from "./QRCode";
 
-interface LobbyProps {
+interface LobbyScreenProps {
+  conn: RoomConnection;
   code: string;
-  name: string;
+  /** True once the province map has preloaded (needed before the host starts). */
+  mapReady: boolean;
+  onStart: () => void;
   onExit: () => void;
 }
 
-export function Lobby({ code, name, onExit }: LobbyProps) {
-  const { status, lobby, error, setConfig, start, leave } = useRoom(code, name);
-
-  const exit = () => {
-    leave();
-    onExit();
-  };
-
-  if (error && status === "closed") {
-    return (
-      <div className="wizard mp">
-        <div className="wizard__bar">
-          <button type="button" className="btn btn--ghost" onClick={exit}>
-            ← Esci
-          </button>
-        </div>
-        <div className="mp__center">
-          <p className="mp__error" role="alert">
-            {error}
-          </p>
-        </div>
-      </div>
-    );
-  }
+export function LobbyScreen({
+  conn,
+  code,
+  mapReady,
+  onStart,
+  onExit,
+}: LobbyScreenProps) {
+  const { lobby, status, setConfig } = conn;
 
   if (!lobby) {
     return (
@@ -51,33 +38,13 @@ export function Lobby({ code, name, onExit }: LobbyProps) {
     );
   }
 
-  if (lobby.phase !== "lobby") {
-    // Gameplay arrives in Phase 2 — for now, acknowledge the start.
-    return (
-      <div className="wizard mp">
-        <div className="wizard__bar">
-          <button type="button" className="btn btn--ghost" onClick={exit}>
-            ← Esci
-          </button>
-        </div>
-        <div className="mp__center">
-          <h1 className="home__title">Si comincia!</h1>
-          <p className="home__sub">
-            La partita è iniziata. Il gioco vero e proprio arriva nella prossima
-            fase.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   const isHost = lobby.you === lobby.hostId;
   const province = getProvince(lobby.provinceId);
 
   return (
     <div className="wizard mp">
       <div className="wizard__bar">
-        <button type="button" className="btn btn--ghost" onClick={exit}>
+        <button type="button" className="btn btn--ghost" onClick={onExit}>
           ← Esci
         </button>
         {status !== "open" && (
@@ -92,11 +59,11 @@ export function Lobby({ code, name, onExit }: LobbyProps) {
           <div className="mp__config">
             <div>
               <span className="mp__label">Provincia</span>
-              {isHost ? (
+              {isHost && (
                 <ProvinceSearch
                   onSelect={(id) => setConfig({ provinceId: id })}
                 />
-              ) : null}
+              )}
               <strong className="mp__config-val">
                 {province ? province.name : lobby.provinceId}
               </strong>
@@ -149,10 +116,10 @@ export function Lobby({ code, name, onExit }: LobbyProps) {
           <button
             type="button"
             className="btn btn--primary btn--lg"
-            disabled={status !== "open"}
-            onClick={start}
+            disabled={status !== "open" || !mapReady}
+            onClick={onStart}
           >
-            Inizia la partita
+            {mapReady ? "Inizia la partita" : "Preparazione…"}
           </button>
         ) : (
           <p className="home__sub mp__waiting">

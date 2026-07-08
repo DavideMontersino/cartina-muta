@@ -8,7 +8,7 @@ import {
   type RoundCount,
 } from "../../multiplayer/protocol";
 import { ProvinceSearch } from "../ProvinceSearch";
-import { Lobby } from "./Lobby";
+import { RoomView } from "./RoomView";
 
 interface MultiplayerAppProps {
   onExit: () => void;
@@ -41,7 +41,7 @@ export function MultiplayerApp({ onExit, initialCode }: MultiplayerAppProps) {
 
   if (inLobby && code) {
     return (
-      <Lobby
+      <RoomView
         code={code}
         name={name}
         onExit={() => {

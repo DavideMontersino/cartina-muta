@@ -1,27 +1,127 @@
 /**
- * React hook that maintains a live WebSocket connection to a room and exposes
- * the latest lobby snapshot plus the actions a player can take. Reconnects with
- * backoff on an unexpected drop and re-sends `hello`, so a refresh or a flaky
- * network resumes the same player (identity comes from the persisted token).
+ * React hook that owns the live WebSocket connection to a room and the full
+ * game state derived from the server's messages (lobby → rounds → reveal →
+ * over). Reconnects with backoff and re-sends `hello`, so a refresh resumes the
+ * same player (identity comes from the persisted token). The server is
+ * authoritative; this hook only mirrors what it broadcasts.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { playerToken, roomWsUrl } from "./client";
 import type {
   ClientMessage,
   LobbyView,
+  RosterEntry,
   RoundCount,
+  RoundResult,
   ServerMessage,
+  Standing,
 } from "./protocol";
 
 export type RoomStatus = "connecting" | "open" | "closed";
+export type Phase = "lobby" | "playing" | "reveal" | "over";
 
-export interface RoomConnection {
-  status: RoomStatus;
+export interface RoundInfo {
+  round: number;
+  total: number;
+  name: string;
+  endsAt: number;
+}
+
+export interface RevealInfo {
+  round: number;
+  total: number;
+  targetIstat: string;
+  results: RoundResult[];
+  standings: Standing[];
+}
+
+interface NetState {
   lobby: LobbyView | null;
+  phase: Phase;
+  round: RoundInfo | null;
+  attemptsLeft: number;
+  finished: string[];
+  /** Bumped on every guess ack so the map can flash feedback. */
+  lastGuess: { correct: boolean; at: number } | null;
+  reveal: RevealInfo | null;
+  standings: Standing[] | null;
   error: string | null;
+}
+
+const initialNet: NetState = {
+  lobby: null,
+  phase: "lobby",
+  round: null,
+  attemptsLeft: 0,
+  finished: [],
+  lastGuess: null,
+  reveal: null,
+  standings: null,
+  error: null,
+};
+
+function apply(state: NetState, msg: ServerMessage): NetState {
+  switch (msg.t) {
+    case "lobby":
+      return {
+        ...state,
+        lobby: msg.state,
+        // A mid-game lobby update (someone (dis)connected) must not reset the
+        // round; only an actual lobby phase pulls us back to the lobby screen.
+        phase: msg.state.phase === "lobby" ? "lobby" : state.phase,
+        error: null,
+      };
+    case "round":
+      return {
+        ...state,
+        phase: "playing",
+        round: {
+          round: msg.round,
+          total: msg.total,
+          name: msg.name,
+          endsAt: msg.endsAt,
+        },
+        attemptsLeft: msg.attemptsLeft,
+        finished: [],
+        lastGuess: null,
+        reveal: null,
+      };
+    case "guessAck":
+      return {
+        ...state,
+        attemptsLeft: msg.attemptsLeft,
+        lastGuess: { correct: msg.correct, at: Date.now() },
+      };
+    case "progress":
+      return { ...state, finished: msg.finished };
+    case "reveal":
+      return {
+        ...state,
+        phase: "reveal",
+        reveal: {
+          round: msg.round,
+          total: msg.total,
+          targetIstat: msg.targetIstat,
+          results: msg.results,
+          standings: msg.standings,
+        },
+        standings: msg.standings,
+      };
+    case "over":
+      return { ...state, phase: "over", standings: msg.standings };
+    case "error":
+      return { ...state, error: msg.message };
+    default:
+      return state;
+  }
+}
+
+export interface RoomConnection extends NetState {
+  status: RoomStatus;
   setConfig: (patch: { provinceId?: string; rounds?: RoundCount }) => void;
-  start: () => void;
+  start: (roster: RosterEntry[]) => void;
+  guess: (istat: string) => void;
   leave: () => void;
 }
 
@@ -29,13 +129,11 @@ const MAX_BACKOFF_MS = 8000;
 
 export function useRoom(code: string | null, name: string): RoomConnection {
   const [status, setStatus] = useState<RoomStatus>("connecting");
-  const [lobby, setLobby] = useState<LobbyView | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [net, dispatch] = useReducer(apply, initialNet);
 
   const wsRef = useRef<WebSocket | null>(null);
   const closedByUs = useRef(false);
   const attempt = useRef(0);
-  // Keep the latest name without forcing a reconnect when it changes.
   const nameRef = useRef(name);
   nameRef.current = name;
 
@@ -57,7 +155,6 @@ export function useRoom(code: string | null, name: string): RoomConnection {
       ws.onopen = () => {
         attempt.current = 0;
         setStatus("open");
-        setError(null);
         ws.send(
           JSON.stringify({
             t: "hello",
@@ -74,14 +171,10 @@ export function useRoom(code: string | null, name: string): RoomConnection {
         } catch {
           return;
         }
-        if (msg.t === "lobby") {
-          setLobby(msg.state);
-          setError(null);
-        } else if (msg.t === "error") {
-          setError(msg.message);
-          // A missing room won't fix itself — stop retrying.
-          if (msg.code === "room_not_found") closedByUs.current = true;
+        if (msg.t === "error" && msg.code === "room_not_found") {
+          closedByUs.current = true; // no point retrying a missing room
         }
+        dispatch(msg);
       };
 
       ws.onclose = () => {
@@ -89,7 +182,6 @@ export function useRoom(code: string | null, name: string): RoomConnection {
           setStatus("closed");
           return;
         }
-        // Exponential backoff reconnect.
         const delay = Math.min(MAX_BACKOFF_MS, 500 * 2 ** attempt.current++);
         setStatus("connecting");
         reconnectTimer = setTimeout(connect, delay);
@@ -111,12 +203,19 @@ export function useRoom(code: string | null, name: string): RoomConnection {
       send({ t: "setConfig", ...patch }),
     [send],
   );
-  const start = useCallback(() => send({ t: "start" }), [send]);
+  const start = useCallback(
+    (roster: RosterEntry[]) => send({ t: "start", roster }),
+    [send],
+  );
+  const guess = useCallback(
+    (istat: string) => send({ t: "guess", istat }),
+    [send],
+  );
   const leave = useCallback(() => {
     closedByUs.current = true;
     send({ t: "leave" });
     wsRef.current?.close();
   }, [send]);
 
-  return { status, lobby, error, setConfig, start, leave };
+  return { status, ...net, setConfig, start, guess, leave };
 }

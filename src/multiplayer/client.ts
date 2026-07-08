@@ -8,7 +8,17 @@
  * `VITE_ROOMS_WS_BASE=ws://localhost:8799`.
  */
 
-import type { CreateRoomResponse, RoundCount } from "./protocol";
+import type { MapDefinition } from "../maps/types";
+import type { CreateRoomResponse, RosterEntry, RoundCount } from "./protocol";
+
+/** The comuni roster the host uploads on start (server picks targets from it). */
+export function rosterFromMap(map: MapDefinition): RosterEntry[] {
+  return map.features.map((f) => ({
+    istat: f.istat,
+    name: f.name,
+    population: f.population,
+  }));
+}
 
 function sameOriginHttp(): string {
   return `${window.location.origin}/api`;
