@@ -21,6 +21,7 @@
   "dependencies": {
     "better-auth": "1.6.23",
     "d3-geo": "^3.1.1",
+    "qrcode-generator": "^1.4.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
@@ -29,12 +30,14 @@
     "@cloudflare/workers-types": "^4.20260702.1",
     "@types/d3-geo": "^3.1.0",
     "@types/node": "^22.20.0",
+    "@types/qrcode-generator": "^1.0.6",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.6",
     "@types/topojson-client": "^3.1.5",
     "@types/topojson-server": "^3.0.4",
     "@types/topojson-simplify": "^3.0.3",
     "@vitejs/plugin-react": "^4.5.2",
+    "playwright": "1.56",
     "topojson-client": "^3.1.0",
     "topojson-server": "^3.0.1",
     "topojson-simplify": "^3.0.3",
