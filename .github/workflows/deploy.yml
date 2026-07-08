@@ -31,8 +31,30 @@ jobs:
 
       - run: npm ci
 
+      # The frontend talks to the multiplayer Worker (cartina-muta-rooms)
+      # directly, so its public URL is baked in at build time. Set these as
+      # repo *variables* (Settings → Secrets and variables → Actions →
+      # Variables): VITE_ROOMS_HTTP_BASE = https://cartina-muta-rooms.<sub>.workers.dev
+      # and VITE_ROOMS_WS_BASE = wss://cartina-muta-rooms.<sub>.workers.dev.
+      # If unset, the client falls back to same-origin /api (no multiplayer).
       - name: Build
         run: npm run build
+        env:
+          VITE_ROOMS_HTTP_BASE: ${{ vars.VITE_ROOMS_HTTP_BASE }}
+          VITE_ROOMS_WS_BASE: ${{ vars.VITE_ROOMS_WS_BASE }}
+
+      # Deploy the multiplayer Worker (owns the Room Durable Object + its
+      # migration). Must run before the Pages deploy so the new frontend has a
+      # live backend. Requires CLOUDFLARE_API_TOKEN to also carry
+      # "Workers Scripts: Edit" scope (in addition to Pages: Edit + D1: Edit).
+      - name: Deploy rooms Worker
+        if: github.ref == 'refs/heads/main'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "3.90.0"
+          command: deploy -c workers/rooms/wrangler.toml
 
       # Apply pending D1 migrations before deploying so code never ships against
       # a schema the DB doesn't have. NOT continue-on-error: a failed migration

@@ -30,12 +30,16 @@ npm run extract-map  # regenerate per-province comuni.json from the ISTAT source
 ## Deploy
 
 CI (`.github/workflows/ci.yml`) runs lint/typecheck/test/build on every push and PR.
-Deploy (`.github/workflows/deploy.yml`) applies pending D1 migrations, builds and ships
-to Cloudflare Pages on push to `main`, then verifies the live `<meta name="build-sha">`
-matches the pushed commit.
+Deploy (`.github/workflows/deploy.yml`) deploys the multiplayer Worker, applies pending
+D1 migrations, builds and ships to Cloudflare Pages on push to `main`, then verifies the
+live `<meta name="build-sha">` matches the pushed commit.
 
-Required GitHub Actions secrets: `CLOUDFLARE_API_TOKEN` (scopes: **Cloudflare Pages: Edit**
-AND **Account > D1 > Edit**) and `CLOUDFLARE_ACCOUNT_ID`.
+Required GitHub Actions secrets: `CLOUDFLARE_API_TOKEN` (scopes: **Cloudflare Pages: Edit**,
+**Account > D1 > Edit**, AND **Account > Workers Scripts: Edit**) and `CLOUDFLARE_ACCOUNT_ID`.
+Required GitHub Actions **variables** (public URLs, not secrets): `VITE_ROOMS_HTTP_BASE` and
+`VITE_ROOMS_WS_BASE` — the deployed rooms-Worker origin, e.g.
+`https://cartina-muta-rooms.<subdomain>.workers.dev` and its `wss://` form. The frontend bakes
+these in at build time to reach the multiplayer backend (see Multiplayer).
 
 ## Auth (Better Auth)
 
@@ -57,6 +61,29 @@ per province via a topojson merge) for the national picker map on the home scree
 `src/maps/registry.ts` exposes the index and an async `loadMap(id)` (code-split per
 province). The picker renders with a planar `geoIdentity` projection — the merged
 overview's ring winding isn't consistent for d3's spherical geometry.
+
+## Multiplayer (Sfida)
+
+Real-time blind-map rooms: a host creates a room, shares a **code / link / QR**, friends
+join (guests or signed-in), everyone gets the **same comune at once**, up to **3 guesses**
+each; a round reveals when all connected players finish or the 25s timer expires. Scoring
+rewards accuracy + speed; animated standings show every 3rd round and at the end.
+
+- **Backend is a separate Worker** (`workers/rooms/`, deployed as `cartina-muta-rooms`):
+  Cloudflare Pages can't host a Durable Object class (no DO migrations in Pages config), so
+  the `Room` DO lives here. One DO instance per room code; state persisted to DO storage with
+  the **WebSocket Hibernation API**; the round clock uses DO **alarms**. `npm run rooms:dev`
+  to run locally, `npm run rooms:deploy` to ship.
+- **Shared, testable logic in `src/multiplayer/`** — imported by *both* the Worker and the
+  React client: `protocol.ts` (wire types), `room.ts` (lobby reducer), `game.ts` (round order,
+  scoring, resolution), `code.ts` (room codes). Pure and unit-tested (`*.test.ts`), mirroring
+  the engine. Tunables live in `ROOM_CONFIG` (game.ts).
+- **Client**: `useRoom` (WS hook, backoff reconnect) drives `RoomView` → lobby / game / standings
+  / results. Reuses `MapCanvas`. The frontend reaches the Worker via `VITE_ROOMS_HTTP_BASE` /
+  `VITE_ROOMS_WS_BASE`; unset → same-origin `/api`. For local dev, copy `.env.example` to
+  `.env.local` pointing at `localhost:8799`.
+- **Auth optional**: guests play with a name only; the Worker holds no user data (permissive
+  CORS is therefore fine). A `/room/CODE` deep link opens straight into the join flow.
 
 ## Data & attribution
 
