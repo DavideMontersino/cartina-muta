@@ -2,17 +2,29 @@ import { type ReactElement, useEffect, useState } from "react";
 import { GameScreen } from "./components/GameScreen";
 import { HomeScreen } from "./components/HomeScreen";
 import { LoadingScreen } from "./components/LoadingScreen";
+import { MultiplayerApp } from "./components/multiplayer/MultiplayerApp";
 import { useNoScrollGuard } from "./dev/useNoScrollGuard";
 import type { GameConfig, GameMode } from "./game/engine";
 import { useClaimPendingScores } from "./leaderboard/useClaimPendingScores";
 import { getProvince, loadMap } from "./maps/registry";
+import { normalizeCode } from "./multiplayer/code";
 
 interface Selection {
   provinceId: string;
   mode: GameMode;
 }
 
+/** A `/room/CODE` deep link opens straight into the multiplayer join flow. */
+function initialDeepLinkCode(): string | null {
+  const match = /^\/room\/([A-Za-z0-9]+)/.exec(window.location.pathname);
+  return match ? normalizeCode(match[1]) : null;
+}
+
 export function App() {
+  const [multiplayer, setMultiplayer] = useState(
+    () => initialDeepLinkCode() !== null,
+  );
+  const [roomCode, setRoomCode] = useState<string | null>(initialDeepLinkCode);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [config, setConfig] = useState<GameConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +62,19 @@ export function App() {
     setError(null);
   };
 
+  if (multiplayer) {
+    return (
+      <MultiplayerApp
+        initialCode={roomCode}
+        onExit={() => {
+          setMultiplayer(false);
+          setRoomCode(null);
+          window.history.replaceState(null, "", "/");
+        }}
+      />
+    );
+  }
+
   let screen: ReactElement;
   if (config) {
     screen = (
@@ -67,6 +92,7 @@ export function App() {
     screen = (
       <HomeScreen
         onStart={(provinceId, mode) => setSelection({ provinceId, mode })}
+        onMultiplayer={() => setMultiplayer(true)}
       />
     );
   }

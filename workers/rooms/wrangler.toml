@@ -1,0 +1,18 @@
+# cartina-muta-rooms — sibling Worker that hosts the multiplayer Durable Object.
+# Deploy: npm run rooms:deploy   Local dev: npm run rooms:dev
+# The Pages project binds to this Worker's `Room` DO via `script_name` (see the
+# root wrangler.toml, added in Phase 1). DO classes and their migrations MUST
+# live here, not in the Pages config — Pages doesn't support DO migrations.
+name = "cartina-muta-rooms"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+# One Durable Object namespace: each room code maps to a `Room` instance.
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+# SQLite-backed DO storage (the current default class type for new DOs).
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]

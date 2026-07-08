@@ -22,6 +22,10 @@ Attribution for all third-party data and assets used in this project.
   the repo root — not committed (same pattern as `italy-municipalities.geojson`, see
   `scripts/extract-map.ts`). Comuni missing from that file default to population 1.
 
+## Libraries
+
+- **qrcode-generator** — [kazuhikoarase/qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) — [MIT License](https://opensource.org/licenses/MIT) — used to render the room-invite QR code client-side (as an inline SVG) in multiplayer lobbies.
+
 ## Fonts
 
 - **Fraunces** — [Google Fonts](https://fonts.google.com/specimen/Fraunces) — [SIL Open Font License 1.1](https://openfontlicense.org/)

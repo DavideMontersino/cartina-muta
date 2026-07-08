@@ -10,6 +10,7 @@ import { ProvinceSearch } from "./ProvinceSearch";
 
 interface HomeScreenProps {
   onStart: (provinceId: string, mode: GameMode) => void;
+  onMultiplayer: () => void;
 }
 
 const TIMER_OPTIONS = TIMER_DURATIONS.map((seconds) => ({
@@ -28,7 +29,7 @@ const randomId = (exclude: string) => {
 // pick a province, then pick a game mode. See CLAUDE.md — no page scroll.
 type Step = "province" | "mode";
 
-export function HomeScreen({ onStart }: HomeScreenProps) {
+export function HomeScreen({ onStart, onMultiplayer }: HomeScreenProps) {
   const [selectedId, setSelectedId] = useState(DEFAULT_ID);
   const [overview, setOverview] = useState<OverviewCollection | null>(null);
   const [step, setStep] = useState<Step>("province");
@@ -64,6 +65,7 @@ export function HomeScreen({ onStart }: HomeScreenProps) {
       onSelect={setSelectedId}
       onRandom={() => setSelectedId((id) => randomId(id))}
       onNext={() => setStep("mode")}
+      onMultiplayer={onMultiplayer}
     />
   );
 }
@@ -75,6 +77,7 @@ interface ProvinceStepProps {
   onSelect: (id: string) => void;
   onRandom: () => void;
   onNext: () => void;
+  onMultiplayer: () => void;
 }
 
 function ProvinceStep({
@@ -84,15 +87,25 @@ function ProvinceStep({
   onSelect,
   onRandom,
   onNext,
+  onMultiplayer,
 }: ProvinceStepProps) {
   return (
     <div className="wizard">
       <div className="wizard__bar">
         <p className="wizard__brand">Campanilismi</p>
-        <HamburgerMenu
-          provinceId={selected?.id}
-          provinceName={selected?.name}
-        />
+        <div className="wizard__bar-actions">
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={onMultiplayer}
+          >
+            👥 Amici
+          </button>
+          <HamburgerMenu
+            provinceId={selected?.id}
+            provinceName={selected?.name}
+          />
+        </div>
       </div>
       <header className="home__head">
         <h1 className="home__title">
@@ -151,6 +164,9 @@ interface ModeStepProps {
 }
 
 function ModeStep({ province, onBack, onStart }: ModeStepProps) {
+  const [timerSeconds, setTimerSeconds] = useState<number>(
+    TIMER_OPTIONS[0].seconds,
+  );
   return (
     <div className="wizard">
       <div className="wizard__bar">
@@ -201,21 +217,29 @@ function ModeStep({ province, onBack, onStart }: ModeStepProps) {
                 Quanti comuni riesci a trovare prima dello scadere?
               </p>
               <div className="mode-card__actions">
-                {TIMER_OPTIONS.map((opt) => (
-                  <button
-                    type="button"
-                    key={opt.seconds}
-                    className="btn btn--primary"
-                    onClick={() =>
-                      onStart({
-                        kind: "timer",
-                        durationSeconds: opt.seconds,
-                      })
-                    }
+                <label className="select">
+                  <span className="select__label">Durata</span>
+                  <select
+                    className="select__input"
+                    value={timerSeconds}
+                    onChange={(e) => setTimerSeconds(Number(e.target.value))}
                   >
-                    {opt.label}
-                  </button>
-                ))}
+                    {TIMER_OPTIONS.map((opt) => (
+                      <option key={opt.seconds} value={opt.seconds}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() =>
+                    onStart({ kind: "timer", durationSeconds: timerSeconds })
+                  }
+                >
+                  Inizia
+                </button>
               </div>
             </section>
 
