@@ -13,6 +13,10 @@ export const ROOM_CONFIG = {
   roundWindowMs: 25_000,
   /** How long the reveal is shown before the next round. */
   revealMs: 4500,
+  /** How long the animated standings interstitial is shown. */
+  standingsMs: 6000,
+  /** Show the standings interstitial after every Nth round (and at the end). */
+  standingsEvery: 3,
   maxAttempts: 3,
   /** Points for a correct answer on the 1st / 2nd / 3rd attempt. */
   base: [500, 300, 150],
@@ -196,6 +200,18 @@ export function roundResults(round: Round): RoundResult[] {
     attempts: p.attempts,
     points: p.points,
   }));
+}
+
+/**
+ * Whether to show the animated standings interstitial after `completedRounds`
+ * rounds — every Nth round, but never after the last (the finale covers that).
+ */
+export function shouldShowStandings(
+  completedRounds: number,
+  totalRounds: number,
+  every: number = ROOM_CONFIG.standingsEvery,
+): boolean {
+  return completedRounds < totalRounds && completedRounds % every === 0;
 }
 
 /** Player ids that have finished the current round (for live "answered" dots). */

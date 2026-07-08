@@ -105,6 +105,7 @@ export type ServerMessage =
       results: RoundResult[];
       standings: Standing[];
     }
+  | { t: "standings"; round: number; total: number; standings: Standing[] }
   | { t: "over"; standings: Standing[] };
 
 /** Response body of `POST /rooms`. */

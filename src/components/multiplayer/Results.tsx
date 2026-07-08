@@ -1,17 +1,14 @@
+import type { Standing } from "../../multiplayer/protocol";
 import type { RoomConnection } from "../../multiplayer/useRoom";
+import { StandingsBoard } from "./StandingsBoard";
 
 interface ResultsProps {
   conn: RoomConnection;
+  previous: Standing[] | null;
   onExit: () => void;
 }
 
-const MEDALS = ["🥇", "🥈", "🥉"];
-
-/** Basic final standings. Phase 3 (#22) animates the score/rank reshuffle. */
-export function Results({ conn, onExit }: ResultsProps) {
-  const standings = conn.standings ?? [];
-  const you = conn.lobby?.you;
-
+export function Results({ conn, previous, onExit }: ResultsProps) {
   return (
     <div className="wizard mp">
       <div className="wizard__bar">
@@ -23,18 +20,14 @@ export function Results({ conn, onExit }: ResultsProps) {
         <h1 className="home__title">Risultati</h1>
       </header>
 
-      <ol className="mp-results">
-        {standings.map((s, i) => (
-          <li
-            key={s.id}
-            className={`mp-results__row ${s.id === you ? "mp-results__row--you" : ""}`}
-          >
-            <span className="mp-results__rank">{MEDALS[i] ?? i + 1}</span>
-            <span className="mp-results__name">{s.name}</span>
-            <span className="mp-results__score">{s.score}</span>
-          </li>
-        ))}
-      </ol>
+      <div className="mp__center mp__center--top">
+        <StandingsBoard
+          standings={conn.standings ?? []}
+          previous={previous}
+          you={conn.lobby?.you}
+          medals
+        />
+      </div>
 
       <div className="wizard__actions">
         <button

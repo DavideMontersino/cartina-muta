@@ -9,6 +9,7 @@ import {
   type Round,
   roundResults,
   scoreRound,
+  shouldShowStandings,
   startRound,
 } from "./game";
 import type { RosterEntry } from "./protocol";
@@ -134,6 +135,18 @@ describe("finalizeRound", () => {
     expect(r.players.p2).toMatchObject({ finished: true, points: 0 });
     expect(r.players.p1.correct).toBe(true);
     expect(finishedIds(r).sort()).toEqual(["p1", "p2"]);
+  });
+});
+
+describe("shouldShowStandings", () => {
+  it("shows after every 3rd round but never after the last", () => {
+    expect(shouldShowStandings(3, 10, 3)).toBe(true);
+    expect(shouldShowStandings(6, 10, 3)).toBe(true);
+    expect(shouldShowStandings(4, 10, 3)).toBe(false);
+    // Round 3 of a 3-round game is the finale → no interstitial.
+    expect(shouldShowStandings(3, 3, 3)).toBe(false);
+    // Last round of a 15-game lands on 15 (a multiple) but is the finale.
+    expect(shouldShowStandings(15, 15, 3)).toBe(false);
   });
 });
 

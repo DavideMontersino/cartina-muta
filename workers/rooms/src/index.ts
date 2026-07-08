@@ -21,6 +21,7 @@ import {
   ROOM_CONFIG,
   type Round,
   roundResults,
+  shouldShowStandings,
   startRound,
 } from "../../../src/multiplayer/game";
 import {
@@ -48,7 +49,7 @@ interface GameData {
   order: Target[];
   scores: Record<string, number>;
   round: Round;
-  stage: "playing" | "reveal" | "finished";
+  stage: "playing" | "reveal" | "standings" | "finished";
 }
 
 /** Everything the DO persists, so it survives hibernation eviction. */
@@ -316,29 +317,62 @@ export class Room implements DurableObject {
     await this.state.storage.setAlarm(now + ROOM_CONFIG.revealMs);
   }
 
-  /** Alarm fires twice per round: to close a timed-out round, and to advance. */
+  /**
+   * The game clock. From `playing` an alarm closes a timed-out round; from
+   * `reveal` it either shows the standings interstitial (every Nth round) or
+   * advances; from `standings` it advances to the next round.
+   */
   async alarm(): Promise<void> {
     const data = await this.data();
-    if (!data?.game) return;
+    const game = data?.game;
+    if (!data || !game) return;
     const now = Date.now();
-    if (data.game.stage === "playing") {
+
+    if (game.stage === "playing") {
       await this.endRound(data, now);
       return;
     }
-    if (data.game.stage === "reveal") {
-      const nextIndex = data.game.round.index + 1;
-      if (nextIndex >= data.game.order.length) {
-        data.game.stage = "finished";
+
+    if (game.stage === "reveal") {
+      const completed = game.round.index + 1;
+      // Animated standings after every Nth round, when more rounds remain.
+      if (shouldShowStandings(completed, game.order.length)) {
+        game.stage = "standings";
         await this.save(data);
-        this.broadcastServer({ t: "over", standings: this.standings(data) });
+        this.broadcastServer({
+          t: "standings",
+          round: completed,
+          total: game.order.length,
+          standings: this.standings(data),
+        });
+        await this.state.storage.setAlarm(now + ROOM_CONFIG.standingsMs);
         return;
       }
-      data.game.round = startRound(data.game.order[nextIndex], nextIndex, now);
-      data.game.stage = "playing";
-      await this.save(data);
-      this.broadcastRound(data);
-      await this.state.storage.setAlarm(data.game.round.endsAt);
+      await this.advance(data, now);
+      return;
     }
+
+    if (game.stage === "standings") {
+      await this.advance(data, now);
+    }
+  }
+
+  /** Start the next round, or finish the game. */
+  private async advance(data: Persisted, now: number): Promise<void> {
+    const game = data.game;
+    if (!game) return;
+    const nextIndex = game.round.index + 1;
+    if (nextIndex >= game.order.length) {
+      game.stage = "finished";
+      await this.save(data);
+      this.broadcastServer({ t: "over", standings: this.standings(data) });
+      return;
+    }
+    game.round = startRound(game.order[nextIndex], nextIndex, now);
+    game.stage = "playing";
+    await this.save(data);
+    this.broadcastRound(data);
+    await this.state.storage.setAlarm(game.round.endsAt);
   }
 
   /** Send the current game phase to one (re)connecting socket. */
@@ -360,6 +394,15 @@ export class Room implements DurableObject {
         total: game.order.length,
         targetIstat: game.round.target.istat,
         results: roundResults(game.round),
+        standings: this.standings(data),
+      });
+      return;
+    }
+    if (game.stage === "standings") {
+      this.send(ws, {
+        t: "standings",
+        round: game.round.index + 1,
+        total: game.order.length,
         standings: this.standings(data),
       });
       return;

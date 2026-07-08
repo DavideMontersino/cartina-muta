@@ -19,7 +19,7 @@ import type {
 } from "./protocol";
 
 export type RoomStatus = "connecting" | "open" | "closed";
-export type Phase = "lobby" | "playing" | "reveal" | "over";
+export type Phase = "lobby" | "playing" | "reveal" | "standings" | "over";
 
 export interface RoundInfo {
   round: number;
@@ -46,6 +46,8 @@ interface NetState {
   lastGuess: { correct: boolean; at: number } | null;
   reveal: RevealInfo | null;
   standings: Standing[] | null;
+  /** Round context for the standings interstitial (round of total). */
+  interstitial: { round: number; total: number } | null;
   error: string | null;
 }
 
@@ -58,6 +60,7 @@ const initialNet: NetState = {
   lastGuess: null,
   reveal: null,
   standings: null,
+  interstitial: null,
   error: null,
 };
 
@@ -107,6 +110,13 @@ function apply(state: NetState, msg: ServerMessage): NetState {
           standings: msg.standings,
         },
         standings: msg.standings,
+      };
+    case "standings":
+      return {
+        ...state,
+        phase: "standings",
+        standings: msg.standings,
+        interstitial: { round: msg.round, total: msg.total },
       };
     case "over":
       return { ...state, phase: "over", standings: msg.standings };
