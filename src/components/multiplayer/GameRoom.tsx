@@ -4,6 +4,8 @@ import type { MapDefinition } from "../../maps/types";
 import { ROOM_CONFIG } from "../../multiplayer/game";
 import type { RoomConnection } from "../../multiplayer/useRoom";
 import { MapCanvas } from "../MapCanvas";
+import { TerrainToggle } from "../TerrainToggle";
+import { useTerrainPreference } from "../useTerrainPreference";
 
 interface GameRoomProps {
   conn: RoomConnection;
@@ -14,6 +16,7 @@ interface GameRoomProps {
 export function GameRoom({ conn, map, onExit }: GameRoomProps) {
   const { round, reveal, phase, attemptsLeft, finished, lastGuess, lobby } =
     conn;
+  const [terrain] = useTerrainPreference();
 
   const istatToIndex = useMemo(() => {
     const m = new Map<string, number>();
@@ -154,7 +157,9 @@ export function GameRoom({ conn, map, onExit }: GameRoomProps) {
           onPick={onPick}
           interactive={interactive}
           panZoom
+          terrain={terrain}
         />
+        <TerrainToggle />
         {!interactive && !isReveal && (
           <div className="mp-game__lock">In attesa degli altri…</div>
         )}

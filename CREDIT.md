@@ -22,6 +22,20 @@ Attribution for all third-party data and assets used in this project.
   the repo root — not committed (same pattern as `italy-municipalities.geojson`, see
   `scripts/extract-map.ts`). Comuni missing from that file default to population 1.
 
+## Terrain layer (optional shaded-relief basemap)
+
+- **Source:** [Esri "World Terrain Base"](https://www.arcgis.com/home/item.html?id=c61ad8ab017d49e1a82f580ee1298931)
+  raster tiles (`server.arcgisonline.com/ArcGIS/rest/services/World_Terrain_Base`),
+  a key-free XYZ tile service.
+- **Upstream data:** Esri, USGS, NOAA (shaded relief + hydrography).
+- **License:** served under Esri's terms for the ArcGIS Online basemaps; attribution
+  ("Rilievo: Esri, USGS, NOAA") is shown on the map whenever the layer is active.
+- **Used for:** the optional terrain toggle available in every game mode — draws
+  real-world relief, waterways, coastline and neighbouring territory (sea / other
+  provinces / other countries) behind the comuni. Aligned to the map's own
+  Web-Mercator projection (`src/game/tiles.ts`); tiles are fetched by the browser
+  at runtime, nothing is committed.
+
 ## Libraries
 
 - **qrcode-generator** — [kazuhikoarase/qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) — [MIT License](https://opensource.org/licenses/MIT) — used to render the room-invite QR code client-side (as an inline SVG) in multiplayer lobbies.

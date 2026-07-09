@@ -558,6 +558,70 @@ button {
   stroke-width: 2px;
 }
 
+/* ── Terrain layer (optional shaded-relief + waterways basemap) ─────────────
+   Real map tiles painted behind the comuni. They fill the whole viewBox, so
+   the context around the province — neighbouring comuni, the sea, and other
+   countries — shows through naturally. When on, region fills go translucent so
+   the terrain reads through while the comune borders stay crisp for guessing. */
+.map-canvas--terrain .region {
+  fill: var(--region-pending);
+  fill-opacity: 0;
+}
+.map-canvas--terrain .region--hover {
+  fill: var(--region-hover);
+  fill-opacity: 0.4;
+}
+.map-canvas--terrain .region--found {
+  fill-opacity: 0.72;
+}
+.map-canvas--terrain .region--missed {
+  fill-opacity: 0.6;
+}
+.map-canvas--terrain .region--reveal,
+.map-canvas--terrain .region--flash {
+  fill-opacity: 0.85;
+}
+
+.terrain-attribution {
+  font-family: var(--font-body);
+  font-size: 11px;
+  fill: rgba(40, 40, 40, 0.72);
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.65);
+  stroke-width: 2px;
+  text-anchor: end;
+  pointer-events: none;
+}
+
+.terrain-toggle {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(242, 233, 214, 0.9);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(2px);
+}
+.terrain-toggle--on {
+  background: var(--olive-deep);
+  color: #fff;
+  border-color: var(--olive-deep);
+}
+.terrain-toggle__label {
+  line-height: 1;
+}
+
 /* Wrong-guess name reveal — a fixed overlay in the lower third of the
    screen, never on top of the tapped region, held long enough to read. */
 .wrong-name-toast {

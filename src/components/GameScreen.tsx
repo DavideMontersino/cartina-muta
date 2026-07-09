@@ -23,6 +23,8 @@ import { ConfirmExitDialog } from "./ConfirmExitDialog";
 import { HamburgerMenu } from "./HamburgerMenu";
 import { MapCanvas, type MapCanvasRef } from "./MapCanvas";
 import { ResultCard } from "./ResultCard";
+import { TerrainToggle } from "./TerrainToggle";
+import { useTerrainPreference } from "./useTerrainPreference";
 
 interface GameScreenProps {
   config: GameConfig;
@@ -39,6 +41,7 @@ function formatClock(totalSeconds: number): string {
 
 export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   const isEnergy = config.mode.kind === "energy";
+  const [terrain] = useTerrainPreference();
   const [state, dispatch] = useReducer(reducer, config, (c) => createGame(c));
   const [isRevealing, setIsRevealing] = useState(false);
   const [isAnimatingMap, setIsAnimatingMap] = useState(false);
@@ -327,7 +330,9 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
             panZoom
             interactive={playing}
             isAnimating={isAnimatingMap}
+            terrain={terrain}
           />
+          <TerrainToggle />
           {wrongIndex !== null && (
             <div key={wrongKey} className="wrong-name-toast">
               {config.map.features[wrongIndex].name}
@@ -513,7 +518,9 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
           panZoom
           interactive={playing}
           isAnimating={isAnimatingMap}
+          terrain={terrain}
         />
+        <TerrainToggle />
         {wrongIndex !== null && (
           <div key={wrongKey} className="wrong-name-toast">
             {config.map.features[wrongIndex].name}

@@ -1,4 +1,4 @@
-import { geoMercator, geoPath } from "d3-geo";
+import { type GeoProjection, geoMercator, geoPath } from "d3-geo";
 import type { Feature, FeatureCollection } from "geojson";
 import type { MapDefinition } from "../maps/types";
 
@@ -15,6 +15,12 @@ export interface ProjectedFeature {
 
 export interface ProjectedMap {
   features: ProjectedFeature[];
+  /**
+   * The Web-Mercator projection used to lay out the map inside the viewBox.
+   * Exposed so an optional raster terrain layer can align standard map tiles
+   * to the exact same pixel space (see game/tiles.ts).
+   */
+  projection: GeoProjection;
 }
 
 /**
@@ -52,5 +58,5 @@ export function projectMap(map: MapDefinition, padding = 24): ProjectedMap {
     return { d: path(feature) ?? "", cx, cy };
   });
 
-  return { features };
+  return { features, projection };
 }

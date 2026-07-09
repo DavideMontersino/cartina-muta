@@ -1,6 +1,11 @@
 import { forwardRef, useImperativeHandle, useMemo, useState } from "react";
 import type { RegionStatus } from "../game/engine";
 import { projectMap, VIEW_H, VIEW_W } from "../game/geo";
+import {
+  computeTerrainTiles,
+  TERRAIN_ATTRIBUTION,
+  terrainTileUrl,
+} from "../game/tiles";
 import type { MapDefinition } from "../maps/types";
 import { usePanZoom } from "./usePanZoom";
 
@@ -17,6 +22,8 @@ interface MapCanvasProps {
   panZoom?: boolean;
   interactive: boolean;
   isAnimating?: boolean;
+  /** Paints a shaded-relief + waterways raster basemap behind the comuni. */
+  terrain?: boolean;
 }
 
 export interface MapCanvasRef {
@@ -39,11 +46,19 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
       panZoom = false,
       interactive,
       isAnimating = false,
+      terrain = false,
     },
     ref,
   ) => {
     const projected = useMemo(() => projectMap(map), [map]);
     const shapes = projected.features;
+    const tiles = useMemo(
+      () =>
+        terrain
+          ? computeTerrainTiles(projected.projection, VIEW_W, VIEW_H)
+          : [],
+      [terrain, projected.projection],
+    );
     const [hover, setHover] = useState<number | null>(null);
 
     const { svgRef, transformCss, style, handlers, setTransform } = usePanZoom({
@@ -69,7 +84,7 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
     return (
       <svg
         ref={svgRef}
-        className={`map-canvas ${isAnimating ? "map-canvas--animating" : ""}`}
+        className={`map-canvas ${isAnimating ? "map-canvas--animating" : ""} ${terrain ? "map-canvas--terrain" : ""}`}
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         role="img"
         aria-label={map.name}
@@ -85,6 +100,22 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
               : undefined
           }
         >
+          {tiles.length > 0 && (
+            <g className="terrain-layer" pointerEvents="none">
+              {tiles.map((t) => (
+                <image
+                  key={`${t.z}/${t.x}/${t.y}`}
+                  href={terrainTileUrl(t)}
+                  x={t.px}
+                  y={t.py}
+                  // Slight bleed hides hairline seams between adjacent tiles.
+                  width={t.size + 0.5}
+                  height={t.size + 0.5}
+                  preserveAspectRatio="none"
+                />
+              ))}
+            </g>
+          )}
           <g>
             {shapes.map((s, i) => {
               const st = status[i];
@@ -134,6 +165,11 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
             )}
           </g>
         </g>
+        {terrain && (
+          <text className="terrain-attribution" x={VIEW_W - 6} y={VIEW_H - 6}>
+            {TERRAIN_ATTRIBUTION}
+          </text>
+        )}
       </svg>
     );
   },
