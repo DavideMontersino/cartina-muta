@@ -472,8 +472,12 @@ export class Room implements DurableObject {
   }
 }
 
-const ROOM_WS = /^\/(?:api\/)?room\/([A-Za-z0-9]+)\/ws$/;
-const ROOMS = /^\/(?:api\/)?rooms$/;
+// The optional `(?:api\/)?` prefix is load-bearing: the Pages Functions
+// (functions/api/rooms.ts, functions/api/room/[code]/ws.ts) forward
+// same-origin requests through unchanged, so these must match both the bare
+// (`/rooms`) and proxied (`/api/rooms`) forms. See index.test.ts.
+export const ROOM_WS = /^\/(?:api\/)?room\/([A-Za-z0-9]+)\/ws$/;
+export const ROOMS = /^\/(?:api\/)?rooms$/;
 const CREATE_ATTEMPTS = 5;
 
 // The room API carries no cookies or user data, so it's safe to allow any

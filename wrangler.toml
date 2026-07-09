@@ -18,3 +18,13 @@ pages_build_output_dir = "dist"
 binding = "DB"
 database_name = "cartina-muta-auth"
 database_id = "cd4a4186-ac6f-4b10-ab15-aff13f1b41a5"
+
+# Service binding → the sibling multiplayer Worker (owns the Room Durable
+# Object). The Pages Functions functions/api/rooms.ts and
+# functions/api/room/[code]/ws.ts forward same-origin `/api/rooms` +
+# `/api/room/:code/ws` to it, so multiplayer works without baking
+# VITE_ROOMS_HTTP_BASE / VITE_ROOMS_WS_BASE into the frontend at build time.
+# The rooms Worker is deployed before the Pages deploy (see deploy.yml).
+[[services]]
+binding = "ROOMS"
+service = "cartina-muta-rooms"

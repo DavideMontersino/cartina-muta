@@ -31,12 +31,14 @@ jobs:
 
       - run: npm ci
 
-      # The frontend talks to the multiplayer Worker (cartina-muta-rooms)
-      # directly, so its public URL is baked in at build time. Set these as
+      # Optional: point the frontend straight at the multiplayer Worker
+      # (cartina-muta-rooms) by baking its public URL in at build time. Set as
       # repo *variables* (Settings → Secrets and variables → Actions →
       # Variables): VITE_ROOMS_HTTP_BASE = https://cartina-muta-rooms.<sub>.workers.dev
       # and VITE_ROOMS_WS_BASE = wss://cartina-muta-rooms.<sub>.workers.dev.
-      # If unset, the client falls back to same-origin /api (no multiplayer).
+      # If unset, the client uses same-origin /api, which the Pages Functions
+      # (functions/api/rooms.ts, functions/api/room/[code]/ws.ts) proxy to the
+      # Worker via its ROOMS service binding — so multiplayer works either way.
       - name: Build
         run: npm run build
         env:
