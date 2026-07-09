@@ -29,16 +29,31 @@ function sameOriginWs(): string {
   return `${proto}//${window.location.host}/api`;
 }
 
+/**
+ * A configured base, or `undefined` when unset **or blank**. This blank check
+ * is load-bearing: CI wires `VITE_ROOMS_HTTP_BASE: ${{ vars.… }}`, and an unset
+ * repo variable expands to an empty string (not "absent"), which `??` would
+ * happily keep — collapsing `"" ?? sameOrigin()` to `""` and making the client
+ * POST to a bare `/rooms` (405, since it's outside `_routes.json`'s `/api/*`).
+ * Treating blank as unset lets the same-origin `/api` fallback engage.
+ */
+export function configuredBase(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
 export function httpBase(): string {
   return (
-    (import.meta.env.VITE_ROOMS_HTTP_BASE as string | undefined) ??
-    sameOriginHttp()
+    configuredBase(
+      import.meta.env.VITE_ROOMS_HTTP_BASE as string | undefined,
+    ) ?? sameOriginHttp()
   );
 }
 
 export function wsBase(): string {
   return (
-    (import.meta.env.VITE_ROOMS_WS_BASE as string | undefined) ?? sameOriginWs()
+    configuredBase(import.meta.env.VITE_ROOMS_WS_BASE as string | undefined) ??
+    sameOriginWs()
   );
 }
 
