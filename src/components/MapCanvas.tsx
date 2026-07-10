@@ -50,7 +50,7 @@ const CENTER_Y = VIEW_H / 2;
  * the current pan/zoom scale so a label stays a fixed size on screen at any
  * zoom while staying pinned to its geographic anchor.
  */
-const LABEL_SIZE = { country: 30, sea: 24, province: 20 } as const;
+const LABEL_SIZE = { country: 36, sea: 30, province: 28 } as const;
 const CONTEXT_ORDER = { sea: 0, province: 1, country: 2 } as const;
 
 interface Layers {
@@ -128,6 +128,20 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
     const { context, relief, water } = useLayers(map.id, terrain);
     const clipId = `province-clip-${map.id}`;
 
+    // The province's projected box — pan/zoom is clamped to it so you can't drift
+    // out into the empty surroundings while zoomed in.
+    const mapBounds = useMemo(() => {
+      const [[x0, y0], [x1, y1]] = geoPath(projected.projection).bounds({
+        type: "FeatureCollection",
+        features: map.features.map((f) => ({
+          type: "Feature",
+          properties: null,
+          geometry: f.geometry,
+        })),
+      });
+      return { x0, y0, x1, y1 };
+    }, [projected.projection, map]);
+
     // Project the vector layers into this viewBox.
     const drawn = useMemo(() => {
       const path = geoPath(projected.projection);
@@ -181,6 +195,7 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
         enabled: panZoom && interactive && !isAnimating,
         centerX: CENTER_X,
         centerY: CENTER_Y,
+        bounds: mapBounds,
         onTap: onPick,
       });
 
@@ -212,15 +227,6 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
         {...handlers}
       >
         <title>{map.name}</title>
-        {/* Paper base — a static land backdrop that fills the frame at any pan
-            or zoom, so the map never floats on an empty rectangle. */}
-        <rect
-          className="map-paper"
-          x={0}
-          y={0}
-          width={VIEW_W}
-          height={VIEW_H}
-        />
         <g
           style={
             panZoom

@@ -19,6 +19,18 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { MultiPolygon, Polygon, Position } from "geojson";
+import polygonClipping from "polygon-clipping";
+
+// polygon-clipping's variadic tuple types don't accept a spread of Position[][][];
+// wrap with plain rest-param signatures.
+const union = polygonClipping.union as unknown as (
+  ...geoms: Position[][][][]
+) => Position[][][];
+const difference = polygonClipping.difference as unknown as (
+  subject: Position[][][],
+  ...clips: Position[][][][]
+) => Position[][][];
+
 import type {
   ContextCollection,
   ContextLabel,
@@ -151,13 +163,51 @@ function provinceDataBbox(id: string): Bbox {
   return collectionBbox(c.features);
 }
 
+/** Clip a geometry's outer rings to the bbox as a polygon-clipping MultiPolygon. */
+function toClippedMp(geom: Polygon | MultiPolygon, bbox: Bbox): Position[][][] {
+  const polys: Position[][][] = [];
+  for (const ring of outerRings(geom)) {
+    const clipped = clipRingToBbox(ring as Ring, bbox);
+    if (clipped.length >= 3) polys.push([clipped]);
+  }
+  return polys;
+}
+
+/** Wind (exterior CW, holes CCW), simplify + round a polygon-clipping result. */
+function toWoundGeometry(mp: Position[][][]): MultiPolygon | null {
+  const out: Position[][][] = [];
+  for (const poly of mp) {
+    const rings: Position[][] = [];
+    for (let r = 0; r < poly.length; r++) {
+      const wound = ensureWinding(
+        simplifyLine(poly[r], SIMPLIFY_TOLERANCE),
+        r === 0,
+      ).map(
+        (p): Position => [roundTo(p[0], PRECISION), roundTo(p[1], PRECISION)],
+      );
+      if (wound.length < 3) continue;
+      const [fx, fy] = wound[0];
+      const [lx, ly] = wound[wound.length - 1];
+      if (fx !== lx || fy !== ly) wound.push([fx, fy]);
+      if (wound.length >= 4) rings.push(wound);
+    }
+    if (rings.length) out.push(rings);
+  }
+  return out.length ? { type: "MultiPolygon", coordinates: out } : null;
+}
+
 /**
- * Seas touching the province bbox → a clipped fill shape + a label anchored on
- * open water. A sea is "present" if any bbox probe point (outside the target)
- * falls inside it — this correctly ignores far-away oceans whose bounding box
- * wraps the globe, and clips the sea to the bbox for the fill.
+ * The sea around the province: one merged fill shape plus a label per named sea.
+ *
+ * The fill is the Natural-Earth sea **minus the Italian landmass** (the union of
+ * all openpolis provinces): subtracting the land makes the sea abut the exact
+ * openpolis coastline, so there is a single coastline (no second edge from NE)
+ * and no need to cover an overreaching sea with opaque land. A sea is "present"
+ * if any bbox probe point (outside the target) falls inside it — which ignores
+ * far-away oceans whose bbox wraps the globe.
  */
 function seaContext(
+  overview: NeFeature[],
   seas: NeFeature[],
   bbox: Bbox,
   targetRings: Ring[],
@@ -188,22 +238,29 @@ function seaContext(
     }
   }
 
-  const shapes: ContextShape[] = [];
-  for (const [name, sea] of present) {
-    const rings = clipAndSimplify(sea.geometry, bbox);
-    if (rings.length) {
-      shapes.push({
-        type: "Feature",
-        properties: { kind: "sea", name },
-        geometry: { type: "MultiPolygon", coordinates: rings.map((r) => [r]) },
-      });
-    }
-  }
   const labels: ContextLabel[] = [...anchor.entries()].map(([name, at]) => ({
     name,
     kind: "sea",
     at,
   }));
+  if (!present.size) return { shapes: [], labels };
+
+  const seaParts = [...present.values()]
+    .map((sea) => toClippedMp(sea.geometry, bbox))
+    .filter((mp) => mp.length);
+  const landParts = overview
+    .map((f) => toClippedMp(f.geometry, bbox))
+    .filter((mp) => mp.length);
+  if (!seaParts.length) return { shapes: [], labels };
+
+  const seaUnion = union(...seaParts);
+  const land = landParts.length ? union(...landParts) : [];
+  const merged = land.length ? difference(seaUnion, land) : seaUnion;
+
+  const geometry = toWoundGeometry(merged);
+  const shapes: ContextShape[] = geometry
+    ? [{ type: "Feature", properties: { kind: "sea", name: "Mare" }, geometry }]
+    : [];
   return { shapes, labels };
 }
 
@@ -249,7 +306,7 @@ async function bakeProvince(
     if (at) labels.push({ name, kind: "country", at });
   }
 
-  const sea = seaContext(seas, bbox, targetRings);
+  const sea = seaContext(overview, seas, bbox, targetRings);
   // Sea shapes first so they render beneath the land context.
   features.unshift(...sea.shapes);
   labels.push(...sea.labels);

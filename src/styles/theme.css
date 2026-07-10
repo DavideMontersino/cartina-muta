@@ -594,30 +594,27 @@ button {
 }
 
 /* ── Map context + terrain ─────────────────────────────────────────────────
-   The province sits inside a labelled surrounding: a paper base with the sea
-   tinted and neighbouring provinces outlined; engraved-script names are ALWAYS
-   drawn (not just with terrain). The optional "Rilievo" toggle adds vector
-   relief bands + rivers, clipped to the province. To avoid double coastlines
-   and border gaps, every land boundary comes from ONE dataset (the Italian
-   provinces): the sea is drawn first, then neighbours are filled with opaque
-   paper on top so their own edge is the single coastline; foreign land (France)
-   is just paper + a label. */
+   The province sits inside a labelled surrounding: the sea is tinted and
+   neighbouring provinces are outlined on the page's own parchment; engraved-
+   script names are ALWAYS drawn (not just with terrain). The optional "Rilievo"
+   toggle adds vector relief bands + rivers, clipped to the province.
 
-/* Paper base — matches the page so the map blends into the parchment. */
-.map-paper {
-  fill: var(--paper);
-}
+   Everything is transparent over the parchment page background, so there is no
+   flat-fill seam against the page. The sea fill is pre-clipped (at bake time) to
+   the Italian coastline, so its edge and the neighbour outline coincide — one
+   coastline, no gaps. France is just a label (no fill/outline of its own). */
 
-/* Sea: a quiet tint, no stroke (its coastline is the neighbour's paper edge). */
+/* Sea: a quiet tint, no stroke (its edge is the coastline, shared with the
+   neighbour outline). */
 .context-shape--sea {
   fill: var(--teal);
-  fill-opacity: 0.15;
+  fill-opacity: 0.16;
   stroke: none;
 }
-/* Neighbour provinces: opaque paper (covers the sea up to the real coast) with
-   a thin boundary line — the only border/coastline drawn. */
+/* Neighbour provinces: no fill (the page parchment shows through), just a thin
+   boundary line — the single border/coastline. */
 .context-shape--province {
-  fill: var(--paper);
+  fill: none;
   stroke: var(--line);
   stroke-width: 0.5;
   stroke-opacity: 0.6;

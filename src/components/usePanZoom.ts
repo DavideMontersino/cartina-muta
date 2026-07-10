@@ -19,8 +19,37 @@ interface UsePanZoomOptions {
   centerY: number;
   minScale?: number;
   maxScale?: number;
+  /**
+   * The content bounds (viewBox coords) the view is kept within — typically the
+   * played province's projected box, so you can't pan/zoom out to the empty
+   * surroundings. Defaults to the full viewBox.
+   */
+  bounds?: { x0: number; y0: number; x1: number; y1: number };
   /** Fires with the data-index of the element under a clean tap (no pan drift). */
   onTap?: (index: number) => void;
+}
+
+/**
+ * Clamp a pan offset on one axis so the content span [lo,hi] keeps covering the
+ * viewport [0, 2·center] at the given zoom. If the content is smaller than the
+ * viewport it's centred instead.
+ */
+export function clampAxis(
+  offset: number,
+  scale: number,
+  center: number,
+  lo: number,
+  hi: number,
+): number {
+  const view = 2 * center;
+  const shift = center * (1 - scale);
+  const tLo = view - scale * hi;
+  const tHi = -scale * lo;
+  const t =
+    tLo > tHi
+      ? view / 2 - (scale * (lo + hi)) / 2
+      : Math.min(tHi, Math.max(tLo, offset + shift));
+  return t - shift;
 }
 
 const DEFAULT_MIN_SCALE = 1;
@@ -68,8 +97,13 @@ export function usePanZoom({
   centerY,
   minScale = DEFAULT_MIN_SCALE,
   maxScale = DEFAULT_MAX_SCALE,
+  bounds,
   onTap,
 }: UsePanZoomOptions) {
+  const bx0 = bounds?.x0 ?? 0;
+  const by0 = bounds?.y0 ?? 0;
+  const bx1 = bounds?.x1 ?? 2 * centerX;
+  const by1 = bounds?.y1 ?? 2 * centerY;
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [transform, setTransform] = useState<PanZoomTransform>({
     x: 0,
@@ -121,14 +155,11 @@ export function usePanZoom({
         // client-px drag back into viewBox units via the getScreenCTM factor.
         const rawX = g.startTransform.x + dx / g.viewScale;
         const rawY = g.startTransform.y + dy / g.viewScale;
-        // Only the overscan beyond the fitted map is pannable: 0 at scale 1,
-        // (scale−1)·center when zoomed in. Keeps the map from leaving the frame.
-        const boundX = Math.max(0, g.startTransform.scale - 1) * centerX;
-        const boundY = Math.max(0, g.startTransform.scale - 1) * centerY;
+        const s = g.startTransform.scale;
         setTransform({
           ...g.startTransform,
-          x: clamp(rawX, -boundX, boundX),
-          y: clamp(rawY, -boundY, boundY),
+          x: clampAxis(rawX, s, centerX, bx0, bx1),
+          y: clampAxis(rawY, s, centerY, by0, by1),
         });
       } else if (g.kind === "pinch" && pointers.current.size === 2) {
         const [a, b] = [...pointers.current.values()];
@@ -138,17 +169,15 @@ export function usePanZoom({
           minScale,
           maxScale,
         );
-        const boundX = Math.max(0, scale - 1) * centerX;
-        const boundY = Math.max(0, scale - 1) * centerY;
         setTransform({
           ...g.startTransform,
           scale,
-          x: clamp(g.startTransform.x, -boundX, boundX),
-          y: clamp(g.startTransform.y, -boundY, boundY),
+          x: clampAxis(g.startTransform.x, scale, centerX, bx0, bx1),
+          y: clampAxis(g.startTransform.y, scale, centerY, by0, by1),
         });
       }
     },
-    [enabled, minScale, maxScale, centerX, centerY],
+    [enabled, minScale, maxScale, centerX, centerY, bx0, by0, bx1, by1],
   );
 
   const handlePointerUp = useCallback(
@@ -174,17 +203,15 @@ export function usePanZoom({
           minScale,
           maxScale,
         );
-        const boundX = Math.max(0, scale - 1) * centerX;
-        const boundY = Math.max(0, scale - 1) * centerY;
         return {
           ...t,
           scale,
-          x: clamp(t.x, -boundX, boundX),
-          y: clamp(t.y, -boundY, boundY),
+          x: clampAxis(t.x, scale, centerX, bx0, bx1),
+          y: clampAxis(t.y, scale, centerY, by0, by1),
         };
       });
     },
-    [enabled, minScale, maxScale, centerX, centerY],
+    [enabled, minScale, maxScale, centerX, centerY, bx0, by0, bx1, by1],
   );
 
   // transformAttr/style reflect the current transform whenever the caller opts
