@@ -20,7 +20,7 @@ export const cnTier1a: Record<string, MunicipalityFlavor> = {
     miss: [
       "Sbagli il capoluogo? Òmmi òmmi, e la torre civica ti guarda male.",
       "Manco Cuneo? La Provincia Granda si offende, vitun.",
-      "Cuneo è lì, grande come una fetta di cuneese al rhum: come fai a mancarla?",
+      "Cuneo è lì in mezzo, golosa come un cuneese al rhum: come fai a mancarla?",
     ],
     fail: [
       "Ti arrendi sul capoluogo? La città che resistette all'assedio del 1744, eh.",
