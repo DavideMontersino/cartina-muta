@@ -35,8 +35,9 @@ import {
   simplifyLine,
 } from "./lib/geo";
 
-/** Margin added around the province bbox — matches extract-relief. */
-const CONTEXT_MARGIN = 0.18;
+/** Margin added around the province bbox. Generous so the backdrop overflows
+ *  the viewBox on every side — no straight bbox edge shows at the default fit. */
+const CONTEXT_MARGIN = 0.4;
 /** Coordinate decimal places — context is a coarse backdrop, 3 ≈ 110 m. */
 const PRECISION = 3;
 /** Douglas-Peucker tolerance for context outlines (degrees, ~0.0015 ≈ 165 m). */
@@ -234,18 +235,16 @@ async function bakeProvince(
     if (at) labels.push({ name: f.properties.name, kind: "province", at });
   }
 
-  // Adjacent foreign countries.
+  // Adjacent foreign countries — LABEL ONLY, no shape. A country polygon comes
+  // from a different dataset than the Italian provinces, so filling/outlining it
+  // would double the France–Italy border and leave gaps. The frontier is drawn
+  // once, from the Italian provinces' own edges; France is just a name on paper.
   for (const c of countries) {
     if ((c.properties.NAME || c.properties.ADMIN) === "Italy") continue;
     const rings = clipAndSimplify(c.geometry, bbox);
     if (!rings.length) continue;
     const name =
       c.properties.NAME_IT || c.properties.NAME || c.properties.ADMIN;
-    features.push({
-      type: "Feature",
-      properties: { kind: "country", name },
-      geometry: { type: "MultiPolygon", coordinates: rings.map((r) => [r]) },
-    });
     const at = labelAnchor(rings, targetRings);
     if (at) labels.push({ name, kind: "country", at });
   }

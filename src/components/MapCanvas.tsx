@@ -212,6 +212,15 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
         {...handlers}
       >
         <title>{map.name}</title>
+        {/* Paper base — a static land backdrop that fills the frame at any pan
+            or zoom, so the map never floats on an empty rectangle. */}
+        <rect
+          className="map-paper"
+          x={0}
+          y={0}
+          width={VIEW_W}
+          height={VIEW_H}
+        />
         <g
           style={
             panZoom

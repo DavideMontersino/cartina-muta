@@ -121,8 +121,10 @@ export function usePanZoom({
         // client-px drag back into viewBox units via the getScreenCTM factor.
         const rawX = g.startTransform.x + dx / g.viewScale;
         const rawY = g.startTransform.y + dy / g.viewScale;
-        const boundX = centerX * g.startTransform.scale;
-        const boundY = centerY * g.startTransform.scale;
+        // Only the overscan beyond the fitted map is pannable: 0 at scale 1,
+        // (scale−1)·center when zoomed in. Keeps the map from leaving the frame.
+        const boundX = Math.max(0, g.startTransform.scale - 1) * centerX;
+        const boundY = Math.max(0, g.startTransform.scale - 1) * centerY;
         setTransform({
           ...g.startTransform,
           x: clamp(rawX, -boundX, boundX),
@@ -136,8 +138,8 @@ export function usePanZoom({
           minScale,
           maxScale,
         );
-        const boundX = centerX * scale;
-        const boundY = centerY * scale;
+        const boundX = Math.max(0, scale - 1) * centerX;
+        const boundY = Math.max(0, scale - 1) * centerY;
         setTransform({
           ...g.startTransform,
           scale,
@@ -172,8 +174,8 @@ export function usePanZoom({
           minScale,
           maxScale,
         );
-        const boundX = centerX * scale;
-        const boundY = centerY * scale;
+        const boundX = Math.max(0, scale - 1) * centerX;
+        const boundY = Math.max(0, scale - 1) * centerY;
         return {
           ...t,
           scale,
