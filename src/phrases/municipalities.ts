@@ -1,7 +1,9 @@
 import { cnTier1a } from "./data/municipalities/cn-t1a";
 import { cnTier1b } from "./data/municipalities/cn-t1b";
 import { cnTier1c } from "./data/municipalities/cn-t1c";
+import { cnTier2a } from "./data/municipalities/cn-t2a";
 import { cnTier2b } from "./data/municipalities/cn-t2b";
+import { cnTier2d } from "./data/municipalities/cn-t2d";
 import type { MunicipalityFlavor } from "./types";
 
 /**
@@ -60,5 +62,7 @@ export const municipalityFlavor: Record<string, MunicipalityFlavor> = {
   ...cnTier1a,
   ...cnTier1b,
   ...cnTier1c,
+  ...cnTier2a,
   ...cnTier2b,
+  ...cnTier2d,
 };

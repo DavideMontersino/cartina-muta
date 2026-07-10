@@ -106,6 +106,27 @@ Natural Earth") is shown whenever the layer is active.
 - **Cavallermaggiore – Santa Maria della Pieve** (`/campanili/004059.jpg`) — [File:Cavallermaggiore-chiesa santa maria della pieve-campanile.jpg](https://commons.wikimedia.org/wiki/File:Cavallermaggiore-chiesa_santa_maria_della_pieve-campanile.jpg) by Davide Papalini, CC BY-SA 3.0.
 - **Cervasca – San Michele** (`/campanili/004064.jpg`) — [File:Cervasca sanmicheledicervasca pianuracuneese.jpg](https://commons.wikimedia.org/wiki/File:Cervasca_sanmicheledicervasca_pianuracuneese.jpg) by Luigi.tuby, CC BY-SA 3.0.
 
+### Provincia di Cuneo — Tier 2 (rows ~26-85 by population)
+
+- **Guarene – Castello di Guarene** (`/campanili/004101.jpg`) — [File:Castello di Guarene 2017-09 n01.jpg](https://commons.wikimedia.org/wiki/File:Castello%20di%20Guarene%202017-09%20n01.jpg) by Jastrow, CC BY 4.0.
+- **Montà – panorama** (`/campanili/004133.jpg`) — [File:Panorama di Montà.JPG](https://commons.wikimedia.org/wiki/File:Panorama%20di%20Mont%C3%A0.JPG) by Stefano182, CC BY-SA 3.0.
+- **Santo Stefano Belbo – veduta** (`/campanili/004213.jpg`) — [File:Santo Stefano Belbo (CN).jpg](https://commons.wikimedia.org/wiki/File:Santo%20Stefano%20Belbo%20%28CN%29.jpg) by Frukko, CC BY-SA 4.0.
+- **Manta – Castello della Manta** (`/campanili/004116.jpg`) — [File:Castello della Manta.jpg](https://commons.wikimedia.org/wiki/File:Castello%20della%20Manta.jpg) by Maurizio Moro5153, CC BY-SA 4.0.
+- **Bene Vagienna – veduta** (`/campanili/004019.jpg`) — [File:Bene Vagienna da Santo Stefano.jpg](https://commons.wikimedia.org/wiki/File:Bene%20Vagienna%20da%20Santo%20Stefano.jpg) by Abisys, CC BY-SA 3.0.
+- **Dogliani – veduta del borgo** (`/campanili/004081.jpg`) — [File:Dogliani veduta.jpg](https://commons.wikimedia.org/wiki/File:Dogliani%20veduta.jpg) by Luigi.tuby, CC BY-SA 3.0.
+- **Revello – Collegiata** (`/campanili/004180.jpg`) — [File:Collegiata di Revello.jpg](https://commons.wikimedia.org/wiki/File:Collegiata%20di%20Revello.jpg) by Pmk58, CC BY-SA 4.0.
+- **Moretta – chiesa di San Giovanni Battista** (`/campanili/004143.jpg`) — [File:Moretta - chiesa di San Giovanni Battista - facciata.jpg](https://commons.wikimedia.org/wiki/File:Moretta%20-%20chiesa%20di%20San%20Giovanni%20Battista%20-%20facciata.jpg) by Betty&Giò, CC BY-SA 4.0.
+- **Diano d'Alba – chiesa di San Giovanni** (`/campanili/004080.jpg`) — [File:Diano d'Alba Chiesa S.Giovanni.jpg](https://commons.wikimedia.org/wiki/File:Diano%20d%27Alba%20Chiesa%20S.Giovanni.jpg) by Pmk58, CC BY-SA 4.0.
+- **Scarnafigi – Piazza V.E.** (`/campanili/004217.jpg`) — [File:Scarnafigi Piazza V.E.jpg](https://commons.wikimedia.org/wiki/File:Scarnafigi_Piazza_V.E.jpg) by Mario Blais, CC BY-SA 4.0.
+- **Priocca** (`/campanili/004176.jpg`) — [File:Priocca.jpg](https://commons.wikimedia.org/wiki/File:Priocca.jpg) by User:Dzag, CC BY-SA 3.0.
+- **Morozzo – chiesa della Natività di Maria** (`/campanili/004144.jpg`) — [File:Morozzo chiesa della Nativita di Maria.jpg](https://commons.wikimedia.org/wiki/File:Morozzo_chiesa_della_Nativita_di_Maria.jpg) by Luigi.tuby, CC BY-SA 4.0.
+- **Grinzane Cavour – castello** (`/campanili/004100.jpg`) — [File:Castello di Grinzane Cavour, dalla Strada (cropped).jpg](https://commons.wikimedia.org/wiki/File:Castello_di_Grinzane_Cavour,_dalla_Strada_(cropped).jpg) by BlackLukes, CC BY-SA 3.0.
+- **Monforte d'Alba – panorama** (`/campanili/004132.jpg`) — [File:Monforte panorama.jpg](https://commons.wikimedia.org/wiki/File:Monforte_panorama.jpg) by Luigi.tuby, CC BY-SA 3.0.
+- **Demonte** (`/campanili/004079.jpg`) — [File:I-CN-Demonte1.JPG](https://commons.wikimedia.org/wiki/File:I-CN-Demonte1.JPG) by Szeder László, CC BY-SA 4.0.
+- **Frabosa Sottana** (`/campanili/004091.jpg`) — [File:Frabosa Sottana - Comune di Frabosa Sottana - 2023-09-01 10-44-54 001.jpg](https://commons.wikimedia.org/wiki/File:Frabosa_Sottana_-_Comune_di_Frabosa_Sottana_-_2023-09-01_10-44-54_001.jpg) by Bubici, CC BY-SA 4.0.
+- **Monteu Roero** (`/campanili/004140.jpg`) — [File:Monteu Roero 01.jpg](https://commons.wikimedia.org/wiki/File:Monteu_Roero_01.jpg) by mattis (User:Mattana), CC BY-SA 4.0.
+- **Roddi – veduta** (`/campanili/004194.jpg`) — [File:Roddi veduta.JPG](https://commons.wikimedia.org/wiki/File:Roddi_veduta.JPG) by Georgius LXXXIX, CC BY-SA 3.0.
+
 ## Libraries
 
 - **qrcode-generator** — [kazuhikoarase/qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) — [MIT License](https://opensource.org/licenses/MIT) — used to render the room-invite QR code client-side (as an inline SVG) in multiplayer lobbies.
