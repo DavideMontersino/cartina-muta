@@ -21,6 +21,8 @@
   --radius: 14px;
   --font-display: "Fraunces", Georgia, "Times New Roman", serif;
   --font-body: "Inter", system-ui, -apple-system, sans-serif;
+  /* Engraved-map lettering for neighbour/country/sea names. */
+  --font-map-label: "Pinyon Script", "Snell Roundhand", cursive;
 }
 
 * {
@@ -591,110 +593,147 @@ button {
   stroke-width: 2px;
 }
 
-/* ── Terrain layer (optional self-baked hillshade + waterways + context) ────
-   A tinted hillshade raster (baked to the parchment palette) sits behind the
-   comuni, with neighbour/country context fills, waterways, and outside-only
-   labels layered on top. When on, region fills go translucent so the relief
-   reads through while the comune borders stay crisp for guessing. */
+/* ── Map context + terrain ─────────────────────────────────────────────────
+   The province sits inside a labelled surrounding: neighbour/country/sea
+   outlines and engraved-script names are ALWAYS drawn (not just with terrain).
+   The optional "Rilievo" toggle adds vector hypsometric relief bands + rivers,
+   clipped to the province so they never spill into the surrounding void. */
+
+/* Context: sea, neighbouring provinces, adjacent countries — a quiet backdrop
+   so the target province stays the focus. */
+.context-shape {
+  stroke: var(--line);
+  stroke-width: 0.5;
+  stroke-opacity: 0.55;
+  stroke-linejoin: round;
+}
+.context-shape--sea {
+  fill: var(--teal);
+  fill-opacity: 0.16;
+  stroke: none;
+}
+.context-shape--province {
+  fill: var(--ink);
+  fill-opacity: 0.05;
+}
+.context-shape--country {
+  fill: var(--terracotta);
+  fill-opacity: 0.07;
+  stroke-dasharray: 3 2;
+}
+
+/* Relief: vector elevation bands, tinted here (retune freely — no re-bake).
+   A single-hue sepia ramp in the parchment palette — valley floors near paper,
+   peaks a deeper tan — so it reads as one quiet, monochrome relief. Stacked
+   low→high; each band's outline doubles as a contour line. Low contrast by
+   design so the comune borders and rivers stay legible on top. */
+.relief-band {
+  stroke: var(--line);
+  stroke-width: 0.28;
+  stroke-opacity: 0.32;
+  stroke-linejoin: round;
+}
+.relief-band--0 {
+  fill: #e6dabf;
+} /* valley floor — near paper */
+.relief-band--1 {
+  fill: #ded1b4;
+}
+.relief-band--2 {
+  fill: #d6c7aa;
+}
+.relief-band--3 {
+  fill: #cdbe9f;
+}
+.relief-band--4 {
+  fill: #c5b494;
+}
+.relief-band--5 {
+  fill: #bdab8a;
+}
+.relief-band--6 {
+  fill: #b5a17f;
+}
+.relief-band--7 {
+  fill: #ac9874;
+}
+.relief-band--8 {
+  fill: #a48e6a;
+}
+.relief-band--9 {
+  fill: #9c855f;
+} /* peaks — deep tan */
+
+/* With relief on, comune fills go transparent so the bands read through, and
+   the borders darken a touch to stay crisp on top. */
 .map-canvas--terrain .region {
   fill: var(--region-pending);
   fill-opacity: 0;
+  stroke: var(--ink-soft);
+  stroke-opacity: 0.7;
+  stroke-width: 0.5;
 }
 .map-canvas--terrain .region--hover {
   fill: var(--region-hover);
   fill-opacity: 0.4;
 }
 .map-canvas--terrain .region--found {
-  fill-opacity: 0.72;
+  fill: var(--region-found);
+  fill-opacity: 0.68;
 }
 .map-canvas--terrain .region--missed {
-  fill-opacity: 0.6;
+  fill-opacity: 0.55;
 }
 .map-canvas--terrain .region--reveal,
 .map-canvas--terrain .region--flash {
   fill-opacity: 0.85;
 }
 
-/* Context: neighbouring provinces and adjacent countries around the target.
-   Faint so the target province reads as the focus; foreign land tinted apart. */
-.context-shape {
-  stroke: var(--line);
-  stroke-width: 0.5;
-  stroke-opacity: 0.5;
-  stroke-linejoin: round;
-}
-.context-shape--province {
-  fill: var(--ink);
-  fill-opacity: 0.06;
-}
-.context-shape--country {
-  fill: var(--terracotta);
-  fill-opacity: 0.08;
-  stroke-dasharray: 3 2;
-}
-
-/* Waterways: rivers/canals as thin blue-grey strokes, water bodies filled. */
+/* Waterways: rivers/canals as thin strokes, water bodies filled. */
 .water {
   pointer-events: none;
 }
 .water--line {
   fill: none;
   stroke: var(--teal);
-  stroke-opacity: 0.65;
+  stroke-opacity: 0.72;
   stroke-width: 0.7;
   stroke-linejoin: round;
   stroke-linecap: round;
 }
 .water--canal {
-  stroke-opacity: 0.5;
+  stroke-opacity: 0.55;
   stroke-dasharray: 2 1.5;
 }
 .water--body {
   fill: var(--teal);
-  fill-opacity: 0.42;
+  fill-opacity: 0.5;
   stroke: var(--teal);
-  stroke-opacity: 0.55;
+  stroke-opacity: 0.6;
   stroke-width: 0.4;
 }
 
-/* Outside-only context labels (neighbour / country / sea names). Never inside
-   the target province — the bake guarantees each anchor sits in its own area. */
+/* Outside-only context labels (neighbour / country / sea names) in an engraved
+   Spencerian script. Sized in JS (fixed on-screen, counter-scaled by zoom) so
+   only colour/weight/style live here. Never inside the target province. */
 .context-label {
-  font-family: var(--font-body);
-  fill: var(--ink-soft);
+  font-family: var(--font-map-label);
+  fill: var(--ink);
+  fill-opacity: 0.85;
   text-anchor: middle;
   dominant-baseline: middle;
   paint-order: stroke;
-  stroke: rgba(242, 233, 214, 0.8);
-  stroke-width: 2.4px;
-  letter-spacing: 0.02em;
-}
-.context-label--province {
-  font-size: 11px;
-  fill-opacity: 0.75;
+  stroke: var(--paper);
+  stroke-opacity: 0.85;
+  stroke-linejoin: round;
 }
 .context-label--country {
-  font-size: 13px;
-  font-weight: 700;
   fill: var(--terracotta);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.01em;
 }
 .context-label--sea {
-  font-size: 12px;
-  font-style: italic;
   fill: var(--teal);
-}
-
-.terrain-attribution {
-  font-family: var(--font-body);
-  font-size: 10px;
-  fill: rgba(40, 40, 40, 0.6);
-  paint-order: stroke;
-  stroke: rgba(255, 255, 255, 0.55);
-  stroke-width: 2px;
-  text-anchor: end;
-  pointer-events: none;
+  font-style: italic;
 }
 
 .terrain-toggle {

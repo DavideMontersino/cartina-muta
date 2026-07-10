@@ -9,15 +9,11 @@ import {
 } from "react";
 import type { RegionStatus } from "../game/engine";
 import { projectMap, VIEW_H, VIEW_W } from "../game/geo";
-import {
-  loadContext,
-  loadRelief,
-  loadWater,
-  type Relief,
-} from "../maps/registry";
+import { loadContext, loadRelief, loadWater } from "../maps/registry";
 import type {
   ContextCollection,
   MapDefinition,
+  ReliefCollection,
   WaterCollection,
 } from "../maps/types";
 import { nicknameFor } from "../phrases/nicknames";
@@ -36,7 +32,7 @@ interface MapCanvasProps {
   panZoom?: boolean;
   interactive: boolean;
   isAnimating?: boolean;
-  /** Paints the tinted hillshade + waterways + neighbour/country context. */
+  /** Adds the tinted relief bands + waterways (clipped to the province). */
   terrain?: boolean;
 }
 
@@ -49,39 +45,65 @@ export interface MapCanvasRef {
 const CENTER_X = VIEW_W / 2;
 const CENTER_Y = VIEW_H / 2;
 
-const ATTRIBUTION =
-  "Rilievo: Terrain Tiles · Acque © OpenStreetMap · Confini: Natural Earth";
+/**
+ * Base on-screen size (viewBox units) for the map labels, by kind. Divided by
+ * the current pan/zoom scale so a label stays a fixed size on screen at any
+ * zoom while staying pinned to its geographic anchor.
+ */
+const LABEL_SIZE = { country: 30, sea: 24, province: 20 } as const;
+const CONTEXT_ORDER = { sea: 0, province: 1, country: 2 } as const;
 
-interface TerrainData {
-  id: string;
-  relief: Relief | null;
-  water: WaterCollection | null;
+interface Layers {
   context: ContextCollection | null;
+  relief: ReliefCollection | null;
+  water: WaterCollection | null;
 }
 
 /**
- * Loads a province's baked terrain layers when the toggle is on. Keyed on the
- * province id + enabled flag so the three call sites stay untouched; ignores a
- * resolve that arrives after the province changed.
+ * Loads a province's map layers. Context (neighbour/country/sea outlines +
+ * labels) always loads so it's visible in every game; relief + waterways load
+ * only when the terrain toggle is on. Keyed on the province id so a late resolve
+ * for a previous province is ignored.
  */
-function useTerrainData(id: string, enabled: boolean): TerrainData | null {
-  const [data, setData] = useState<TerrainData | null>(null);
+function useLayers(id: string, terrain: boolean): Layers {
+  const [context, setContext] = useState<ContextCollection | null>(null);
+  const [terrainData, setTerrainData] = useState<{
+    id: string;
+    relief: ReliefCollection | null;
+    water: WaterCollection | null;
+  } | null>(null);
+
   useEffect(() => {
-    if (!enabled) {
-      setData(null);
-      return;
-    }
     let cancelled = false;
-    Promise.all([loadRelief(id), loadWater(id), loadContext(id)]).then(
-      ([relief, water, context]) => {
-        if (!cancelled) setData({ id, relief, water, context });
-      },
-    );
+    setContext(null);
+    loadContext(id).then((c) => {
+      if (!cancelled) setContext(c);
+    });
     return () => {
       cancelled = true;
     };
-  }, [id, enabled]);
-  return data && data.id === id ? data : null;
+  }, [id]);
+
+  useEffect(() => {
+    if (!terrain) {
+      setTerrainData(null);
+      return;
+    }
+    let cancelled = false;
+    Promise.all([loadRelief(id), loadWater(id)]).then(([relief, water]) => {
+      if (!cancelled) setTerrainData({ id, relief, water });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, terrain]);
+
+  const active = terrainData && terrainData.id === id ? terrainData : null;
+  return {
+    context,
+    relief: active?.relief ?? null,
+    water: active?.water ?? null,
+  };
 }
 
 export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
@@ -103,46 +125,27 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
     const shapes = projected.features;
     const [hover, setHover] = useState<number | null>(null);
 
-    const data = useTerrainData(map.id, terrain);
+    const { context, relief, water } = useLayers(map.id, terrain);
+    const clipId = `province-clip-${map.id}`;
 
-    // Project the terrain layers into this viewBox once the data is loaded.
-    const layers = useMemo(() => {
-      if (!terrain || !data) return null;
-      const projection = projected.projection;
-      const path = geoPath(projection);
+    // Project the vector layers into this viewBox.
+    const drawn = useMemo(() => {
+      const path = geoPath(projected.projection);
+      const project = projected.projection;
 
-      // Hillshade: a lon/lat rectangle → an axis-aligned rect in the projected
-      // plane, so place the image by projecting just its NW and SE corners.
-      let relief: {
-        href: string;
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-      } | null = null;
-      if (data.relief) {
-        const [west, south, east, north] = data.relief.bounds;
-        const nw = projection([west, north]);
-        const se = projection([east, south]);
-        if (nw && se) {
-          relief = {
-            href: data.relief.url,
-            x: nw[0],
-            y: nw[1],
-            width: se[0] - nw[0],
-            height: se[1] - nw[1],
-          };
-        }
-      }
+      const contextShapes = [...(context?.features ?? [])]
+        .sort(
+          (a, b) =>
+            CONTEXT_ORDER[a.properties.kind] - CONTEXT_ORDER[b.properties.kind],
+        )
+        .map((f, i) => ({
+          key: `ctx-${i}`,
+          kind: f.properties.kind,
+          d: path(f as Feature) ?? "",
+        }));
 
-      const context = (data.context?.features ?? []).map((f, i) => ({
-        key: `ctx-${i}`,
-        kind: f.properties.kind,
-        d: path(f as Feature) ?? "",
-      }));
-
-      const contextLabels = (data.context?.labels ?? []).flatMap((l, i) => {
-        const p = projection(l.at);
+      const contextLabels = (context?.labels ?? []).flatMap((l, i) => {
+        const p = project(l.at);
         if (!p) return [];
         const nick = nicknameFor(l.name);
         return [
@@ -157,25 +160,29 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
         ];
       });
 
-      const water = (data.water?.features ?? []).map((f, i) => {
-        const line = f.geometry.type.includes("Line");
-        return {
-          key: `wat-${i}`,
-          kind: f.properties.kind,
-          area: !line,
-          d: path(f as Feature) ?? "",
-        };
+      const bands = (relief?.features ?? []).map((f, i) => ({
+        key: `band-${i}`,
+        level: f.properties.level,
+        d: path(f as Feature) ?? "",
+      }));
+
+      const waterways = (water?.features ?? []).map((f, i) => ({
+        key: `wat-${i}`,
+        kind: f.properties.kind,
+        area: !f.geometry.type.includes("Line"),
+        d: path(f as Feature) ?? "",
+      }));
+
+      return { contextShapes, contextLabels, bands, waterways };
+    }, [context, relief, water, projected.projection]);
+
+    const { svgRef, transform, transformCss, style, handlers, setTransform } =
+      usePanZoom({
+        enabled: panZoom && interactive && !isAnimating,
+        centerX: CENTER_X,
+        centerY: CENTER_Y,
+        onTap: onPick,
       });
-
-      return { relief, context, contextLabels, water };
-    }, [terrain, data, projected.projection]);
-
-    const { svgRef, transformCss, style, handlers, setTransform } = usePanZoom({
-      enabled: panZoom && interactive && !isAnimating,
-      centerX: CENTER_X,
-      centerY: CENTER_Y,
-      onTap: onPick,
-    });
 
     useImperativeHandle(ref, () => ({
       flyTo: (cx: number, cy: number, scale: number) => {
@@ -189,6 +196,9 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
         setTransform({ x: 0, y: 0, scale: 1 });
       },
     }));
+
+    const hasTerrain =
+      terrain && (drawn.bands.length > 0 || drawn.waterways.length > 0);
 
     return (
       <svg
@@ -209,26 +219,44 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
               : undefined
           }
         >
-          {layers && (
-            <g className="terrain-layer" pointerEvents="none">
-              {layers.relief && (
-                <image
-                  href={layers.relief.href}
-                  x={layers.relief.x}
-                  y={layers.relief.y}
-                  width={layers.relief.width}
-                  height={layers.relief.height}
-                  preserveAspectRatio="none"
-                />
-              )}
-              {layers.context.map((c) => (
+          {hasTerrain && (
+            <defs>
+              <clipPath id={clipId}>
+                {shapes.map((s, i) => (
+                  <path key={map.features[i].istat} d={s.d} />
+                ))}
+              </clipPath>
+            </defs>
+          )}
+
+          {/* Context: sea + neighbour/country land, always visible. */}
+          {drawn.contextShapes.length > 0 && (
+            <g className="context-layer" pointerEvents="none">
+              {drawn.contextShapes.map((c) => (
                 <path
                   key={c.key}
                   d={c.d}
                   className={`context-shape context-shape--${c.kind}`}
                 />
               ))}
-              {layers.water.map((w) => (
+            </g>
+          )}
+
+          {/* Relief bands + waterways, clipped to the province. */}
+          {hasTerrain && (
+            <g
+              className="terrain-layer"
+              clipPath={`url(#${clipId})`}
+              pointerEvents="none"
+            >
+              {drawn.bands.map((b) => (
+                <path
+                  key={b.key}
+                  d={b.d}
+                  className={`relief-band relief-band--${b.level}`}
+                />
+              ))}
+              {drawn.waterways.map((w) => (
                 <path
                   key={w.key}
                   d={w.d}
@@ -237,6 +265,8 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
               ))}
             </g>
           )}
+
+          {/* Comuni — interactive. */}
           <g>
             {shapes.map((s, i) => {
               const st = status[i];
@@ -271,20 +301,8 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
               );
             })}
           </g>
-          {layers && layers.contextLabels.length > 0 && (
-            <g className="context-labels" pointerEvents="none">
-              {layers.contextLabels.map((l) => (
-                <text
-                  key={l.key}
-                  x={l.x}
-                  y={l.y}
-                  className={`context-label context-label--${l.kind} ${l.nick ? "context-label--nick" : ""}`}
-                >
-                  {l.name}
-                </text>
-              ))}
-            </g>
-          )}
+
+          {/* Found-comune labels. */}
           <g className="labels" pointerEvents="none">
             {shapes.map((s, i) =>
               status[i] === "found" ? (
@@ -299,12 +317,29 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
               ) : null,
             )}
           </g>
+
+          {/* Outside-only context labels (neighbour / country / sea), in an
+              engraved script at a fixed on-screen size (counter-scaled by the
+              current zoom). Never inside the target province — see the bake. */}
+          {drawn.contextLabels.length > 0 && (
+            <g className="context-labels" pointerEvents="none">
+              {drawn.contextLabels.map((l) => (
+                <text
+                  key={l.key}
+                  x={l.x}
+                  y={l.y}
+                  className={`context-label context-label--${l.kind} ${l.nick ? "context-label--nick" : ""}`}
+                  style={{
+                    fontSize: LABEL_SIZE[l.kind] / transform.scale,
+                    strokeWidth: 4 / transform.scale,
+                  }}
+                >
+                  {l.name}
+                </text>
+              ))}
+            </g>
+          )}
         </g>
-        {terrain && (
-          <text className="terrain-attribution" x={VIEW_W - 6} y={VIEW_H - 6}>
-            {ATTRIBUTION}
-          </text>
-        )}
       </svg>
     );
   },

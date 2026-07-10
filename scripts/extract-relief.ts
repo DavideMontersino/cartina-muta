@@ -1,64 +1,42 @@
 /**
- * Bakes a self-made, theme-tinted shaded-relief raster per province.
+ * Bakes a province's relief as **vector hypsometric contour bands** (not a
+ * raster). Fetches the covering Terrarium terrain-RGB DEM tiles, stitches an
+ * elevation grid sampled uniformly in Web Mercator, and runs it through
+ * `d3-contour` at a set of elevation thresholds to produce nested band polygons
+ * written to `src/maps/relief/<id>.json` (WGS84 GeoJSON).
  *
- * Pipeline: fetch the covering Terrarium terrain-RGB DEM tiles for the
- * province bbox (+ context margin), stitch them into an elevation grid sampled
- * uniformly in Web Mercator, compute a Horn hillshade, tint by a hypsometric
- * colour ramp keyed to the game's parchment palette, and write one PNG per
- * province to `src/maps/relief/<id>.png` plus a sibling `<id>.json` holding the
- * image's WGS84 bounds so the app can place it under the comuni.
- *
- * Because the image is generated in Web Mercator (the app projects with
- * d3.geoMercator), a lon/lat rectangle maps to an axis-aligned rectangle in the
- * projected plane — so the app places it by projecting just the NW/SE corners.
+ * Why vector: resolution-independent (crisp at any zoom), tiny, clips cleanly
+ * to the province, and the colours live in CSS — retune the palette without a
+ * re-bake. The app stacks the bands low→high, tints each by level, and strokes
+ * their outlines as contour lines (see components/MapCanvas.tsx).
  *
  * DEM source: AWS Terrain Tiles / Terrarium terrain-RGB (Mapzen), elevation
- * decoded as (R*256 + G + B/256) − 32768 — no GDAL needed. Cached to
- * `.cache/relief-tiles/` (gitignored) so re-bakes are cheap.
+ * decoded as (R*256 + G + B/256) − 32768. Tiles cached to `.cache/relief-tiles/`.
  *
  *   npm run extract-relief         # bake every province
- *   npm run extract-relief cn      # bake just one (fast iteration)
+ *   npm run extract-relief cn      # bake just one
  *
  * ─────────────────────────────────────────────────────────────────────────────
- * TUNABLE LOOK & FEEL — edit these and re-bake to restyle the relief.
+ * TUNABLE LOOK & FEEL — edit these and re-bake to restyle the relief. (Colours
+ * are CSS, in src/styles/theme.css — only the *shape* of the bands is baked.)
  * ───────────────────────────────────────────────────────────────────────────*/
 
-/** Sun position for the hillshade, degrees. Azimuth 315° = classic NW light. */
-const SUN_AZIMUTH_DEG = 315;
-const SUN_ALTITUDE_DEG = 45;
-/** Vertical exaggeration applied to slopes before shading. */
-const Z_FACTOR = 1.3;
 /**
- * How hard the hillshade darkens/lightens the tint. 0 = flat colour (no
- * relief), 1 = full multiply. The shade is centred on mid-grey so lit slopes
- * brighten and shadowed slopes darken the hypsometric colour.
+ * Elevation thresholds (metres) — the lower bound of each hypsometric band.
+ * Band `i` covers [THRESHOLDS[i], THRESHOLDS[i+1]); the last band is open-ended.
+ * More (or closer) thresholds = finer contour lines. Keep in sync with the
+ * `.relief-band--N` colours in theme.css.
  */
-const HILLSHADE_STRENGTH = 0.85;
-/** Long edge of the output image, px. Short edge follows the bbox aspect. */
-const OUTPUT_LONG_SIDE = 1024;
-/** Fraction of the province bbox added on every side for surrounding context. */
-const CONTEXT_MARGIN = 0.18;
-/** Slippy zoom of the DEM tiles fetched. z11 ≈ 76 m/px — plenty for a province. */
+const THRESHOLDS = [0, 150, 350, 600, 900, 1300, 1800, 2400, 3000, 3700];
+/** Long edge (cells) of the elevation grid fed to d3-contour. */
+const GRID_LONG_SIDE = 480;
+/** Fraction of the province bbox added on every side (small — bands are clipped
+ *  to the province in-app, this just lets edge contours close cleanly). */
+const CONTEXT_MARGIN = 0.06;
+/** Douglas-Peucker tolerance for band rings (degrees, ~0.0009 ≈ 100 m). */
+const SIMPLIFY_TOLERANCE = 0.0009;
+/** Slippy zoom of the DEM tiles fetched. z11 ≈ 76 m/px. */
 const DEM_ZOOM = 11;
-
-/** In-theme pale sea/water tint for elevation ≤ 0 and nodata. */
-const SEA_COLOR: Rgb = [176, 201, 197];
-
-/**
- * Hypsometric colour ramp, tinted to the parchment palette: muted greens in
- * the valleys → tans → browns → pale peaks. Stops are `[elevation_m, [r,g,b]]`,
- * ascending; between stops the colour is linearly interpolated.
- */
-const HYPSOMETRIC_RAMP: Array<[number, Rgb]> = [
-  [0, [143, 157, 99]], // lowland — muted olive green
-  [250, [170, 172, 110]], // low hills
-  [600, [193, 178, 120]], // foothills — olive tan
-  [1100, [198, 168, 112]], // tan
-  [1800, [180, 143, 100]], // brown
-  [2600, [151, 122, 93]], // dark brown
-  [3400, [199, 182, 151]], // high — pale brown
-  [4200, [236, 229, 210]], // peaks — pale parchment
-];
 
 /* ─────────────────────────────────────────────────────────────────────────*/
 
@@ -66,18 +44,20 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { inflateSync } from "node:zlib";
+import { contours } from "d3-contour";
+import type { MultiPolygon, Position } from "geojson";
+import type { ReliefBand, ReliefCollection } from "../src/maps/types";
 import {
   type Bbox,
   collectionBbox,
+  ensureWinding,
   expandBbox,
   latToMercY,
   lonToMercX,
   mercYToLat,
+  simplifyLine,
   tileCover,
 } from "./lib/geo";
-import { encodePng } from "./lib/png";
-
-export type Rgb = [number, number, number];
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -96,105 +76,103 @@ export function decodeElevation(r: number, g: number, b: number): number {
   return r * 256 + g + b / 256 - 32768;
 }
 
-/** Linear interpolation between two colours. */
-function mixRgb(a: Rgb, b: Rgb, t: number): Rgb {
-  return [
-    a[0] + (b[0] - a[0]) * t,
-    a[1] + (b[1] - a[1]) * t,
-    a[2] + (b[2] - a[2]) * t,
-  ];
-}
-
-/** Map an elevation (metres) to a hypsometric colour via the ramp. */
-export function hypsometricColor(
-  elev: number,
-  ramp: Array<[number, Rgb]> = HYPSOMETRIC_RAMP,
-): Rgb {
-  if (elev <= ramp[0][0]) return ramp[0][1];
-  const last = ramp[ramp.length - 1];
-  if (elev >= last[0]) return last[1];
-  for (let i = 1; i < ramp.length; i++) {
-    if (elev <= ramp[i][0]) {
-      const [e0, c0] = ramp[i - 1];
-      const [e1, c1] = ramp[i];
-      return mixRgb(c0, c1, (elev - e0) / (e1 - e0));
-    }
-  }
-  return last[1];
-}
-
 /**
- * Horn hillshade at grid cell (col, row): illumination in [0,1] from the sun.
- * `dx`/`dy` are the ground spacing (metres) between adjacent cells; edges clamp
- * to the border. Returns the standard cos-of-incidence term, floored at 0.
+ * Map a d3-contour grid coordinate (x in [0,width], y in [0,height], y down) to
+ * a WGS84 `[lon, lat]`, given the grid's Web-Mercator bounds. Pure/testable.
  */
-export function hillshade(
-  grid: Float32Array,
+export function gridToLonLat(
+  gx: number,
+  gy: number,
   width: number,
   height: number,
-  col: number,
-  row: number,
-  dx: number,
-  dy: number,
-  azimuthDeg = SUN_AZIMUTH_DEG,
-  altitudeDeg = SUN_ALTITUDE_DEG,
-  zFactor = Z_FACTOR,
-): number {
-  const cx = Math.max(0, Math.min(width - 1, col));
-  const cy = Math.max(0, Math.min(height - 1, row));
-  const at = (c: number, r: number) => {
-    const ci = Math.max(0, Math.min(width - 1, c));
-    const ri = Math.max(0, Math.min(height - 1, r));
-    return grid[ri * width + ci];
-  };
-  const x = cx;
-  const y = cy;
-  // 3×3 window (a b c / d e f / g h i).
-  const a = at(x - 1, y - 1);
-  const b = at(x, y - 1);
-  const c = at(x + 1, y - 1);
-  const d = at(x - 1, y);
-  const f = at(x + 1, y);
-  const g = at(x - 1, y + 1);
-  const h = at(x, y + 1);
-  const i = at(x + 1, y + 1);
+  bbox: Bbox,
+): Position {
+  const mxW = lonToMercX(bbox[0]);
+  const mxE = lonToMercX(bbox[2]);
+  const myN = latToMercY(bbox[3]);
+  const myS = latToMercY(bbox[1]);
+  const lon = (mxW + (gx / width) * (mxE - mxW)) * 360 - 180;
+  const lat = mercYToLat(myN + (gy / height) * (myS - myN));
+  return [lon, lat];
+}
 
-  const dzdx = (c + 2 * f + i - (a + 2 * d + g)) / (8 * dx);
-  const dzdy = (g + 2 * h + i - (a + 2 * b + c)) / (8 * dy);
+const roundTo = (n: number, p: number) => Number(n.toFixed(p));
 
-  const zenith = ((90 - altitudeDeg) * Math.PI) / 180;
-  const azimuth = ((360 - azimuthDeg + 90) * Math.PI) / 180;
-  const slope = Math.atan(zFactor * Math.hypot(dzdx, dzdy));
-  let aspect = Math.atan2(dzdy, -dzdx);
-  if (aspect < 0) aspect += 2 * Math.PI;
-
-  const shade =
-    Math.cos(zenith) * Math.cos(slope) +
-    Math.sin(zenith) * Math.sin(slope) * Math.cos(azimuth - aspect);
-  return Math.max(0, shade);
+/**
+ * Turn one d3-contour MultiPolygon (grid space) into a winding-correct,
+ * simplified, WGS84 MultiPolygon: each polygon's exterior ring is forced
+ * clockwise and its holes counter-clockwise, matching the comuni so d3's
+ * spherical geoPath fills the interior (not the whole viewport). Returns null if
+ * nothing survives.
+ */
+export function bandGeometry(
+  grid: MultiPolygon,
+  width: number,
+  height: number,
+  bbox: Bbox,
+): MultiPolygon | null {
+  const polys: Position[][][] = [];
+  for (const poly of grid.coordinates) {
+    const rings: Position[][] = [];
+    for (let r = 0; r < poly.length; r++) {
+      const lonlat = poly[r].map((p) =>
+        gridToLonLat(p[0], p[1], width, height, bbox),
+      );
+      const simplified = simplifyLine(lonlat, SIMPLIFY_TOLERANCE).map(
+        (p): Position => [roundTo(p[0], 4), roundTo(p[1], 4)],
+      );
+      if (simplified.length < 4) continue;
+      // Exterior (r===0) clockwise; holes counter-clockwise.
+      const wound = ensureWinding(simplified, r === 0);
+      const [fx, fy] = wound[0];
+      const [lx, ly] = wound[wound.length - 1];
+      if (fx !== lx || fy !== ly) wound.push([fx, fy]);
+      rings.push(wound);
+    }
+    if (rings.length) polys.push(rings);
+  }
+  return polys.length ? { type: "MultiPolygon", coordinates: polys } : null;
 }
 
 /**
- * Compose an elevation and its hillshade into a final in-theme colour: sea/
- * nodata gets the flat sea tint; land is the hypsometric colour multiplied by
- * the hillshade (centred so lit slopes brighten, shadows darken).
+ * Build hypsometric band features from an elevation grid via d3-contour. Band
+ * `i` is the region ≥ THRESHOLDS[i]; drawn stacked low→high in the app.
  */
-export function shadeColor(elev: number, shade: number): Rgb {
-  if (!Number.isFinite(elev) || elev <= 0) return SEA_COLOR;
-  const base = hypsometricColor(elev);
-  // Centre the shade on 0.5 so mid-slopes keep the true colour.
-  const factor = 1 + HILLSHADE_STRENGTH * (shade - 0.5) * 2;
-  return [
-    Math.max(0, Math.min(255, base[0] * factor)),
-    Math.max(0, Math.min(255, base[1] * factor)),
-    Math.max(0, Math.min(255, base[2] * factor)),
-  ];
+export function buildBands(
+  values: number[],
+  width: number,
+  height: number,
+  bbox: Bbox,
+  thresholds = THRESHOLDS,
+): ReliefBand[] {
+  const generate = contours().size([width, height]).thresholds(thresholds);
+  const bands: ReliefBand[] = [];
+  const rings = generate(values);
+  for (let i = 0; i < rings.length; i++) {
+    const geometry = bandGeometry(
+      rings[i] as MultiPolygon,
+      width,
+      height,
+      bbox,
+    );
+    if (!geometry) continue;
+    bands.push({
+      type: "Feature",
+      properties: {
+        level: i,
+        min: thresholds[i],
+        max: thresholds[i + 1] ?? null,
+      },
+      geometry,
+    });
+  }
+  return bands;
 }
 
-/** Output pixel dimensions for a bbox, long side = `long`, aspect in Mercator. */
-export function outputSize(
+/** Output grid dimensions for a bbox, long side = `long`, aspect in Mercator. */
+export function gridSize(
   bbox: Bbox,
-  long = OUTPUT_LONG_SIDE,
+  long = GRID_LONG_SIDE,
 ): { width: number; height: number } {
   const wx = lonToMercX(bbox[2]) - lonToMercX(bbox[0]);
   const wy = latToMercY(bbox[1]) - latToMercY(bbox[3]);
@@ -207,9 +185,6 @@ export function outputSize(
 /* ── DEM tiles → elevation sampler (I/O) ───────────────────────────────────*/
 
 interface DemTile {
-  x: number;
-  y: number;
-  /** Decoded elevations, row-major, TILE_SIZE×TILE_SIZE. */
   elev: Float32Array;
 }
 
@@ -230,7 +205,6 @@ async function fetchWithRetry(url: string, tries = 4): Promise<Buffer> {
 
 /** Decode a Terrarium PNG tile's raw pixels to a TILE_SIZE² elevation grid. */
 function decodeTile(png: Buffer): Float32Array {
-  // Inflate IDAT with the built-in zlib, then undo the per-row PNG filters.
   let pos = 8;
   let width = 0;
   let height = 0;
@@ -327,8 +301,6 @@ async function loadTile(
 function makeSampler(tiles: Map<string, DemTile>, z: number) {
   const worldPx = 2 ** z * TILE_SIZE;
   return (lon: number, lat: number): number => {
-    // Nearest-neighbour is ample: z11 DEM (~76 m/px) is finer than the ~1024px
-    // province image, so the output already downsamples the elevation grid.
     const gx = Math.max(0, Math.min(worldPx - 1, lonToMercX(lon) * worldPx));
     const gy = Math.max(0, Math.min(worldPx - 1, latToMercY(lat) * worldPx));
     const tx = Math.floor(gx / TILE_SIZE);
@@ -343,74 +315,48 @@ function makeSampler(tiles: Map<string, DemTile>, z: number) {
 
 /* ── Bake one province ─────────────────────────────────────────────────────*/
 
-async function bakeProvince(id: string): Promise<number> {
+async function bakeProvince(id: string): Promise<ReliefCollection> {
   const dataPath = resolve(DATA_DIR, `${id}.json`);
   if (!existsSync(dataPath)) throw new Error(`no map data for province ${id}`);
   const collection = JSON.parse(readFileSync(dataPath, "utf8"));
   const bbox = expandBbox(collectionBbox(collection.features), CONTEXT_MARGIN);
-  const { width, height } = outputSize(bbox);
+  const { width, height } = gridSize(bbox);
 
   // Fetch the covering DEM tiles.
   const cover = tileCover(bbox, DEM_ZOOM);
   const tiles = new Map<string, DemTile>();
   for (let ty = cover.yMin; ty <= cover.yMax; ty++) {
     for (let tx = cover.xMin; tx <= cover.xMax; tx++) {
-      const elev = await loadTile(DEM_ZOOM, tx, ty);
-      tiles.set(`${tx},${ty}`, { x: tx, y: ty, elev });
+      tiles.set(`${tx},${ty}`, { elev: await loadTile(DEM_ZOOM, tx, ty) });
     }
   }
   const sample = makeSampler(tiles, DEM_ZOOM);
 
-  // Sample an elevation grid uniformly in Web Mercator (so linear placement
-  // between the projected NW/SE corners is exact).
+  // Sample an elevation grid uniformly in Web Mercator (row 0 = north).
   const mxW = lonToMercX(bbox[0]);
   const mxE = lonToMercX(bbox[2]);
   const myN = latToMercY(bbox[3]);
   const myS = latToMercY(bbox[1]);
-  const elevGrid = new Float32Array(width * height);
+  const values = new Array<number>(width * height);
   for (let row = 0; row < height; row++) {
-    const my = myN + ((row + 0.5) / height) * (myS - myN);
-    const lat = mercYToLat(my);
+    const lat = mercYToLat(myN + ((row + 0.5) / height) * (myS - myN));
     for (let col = 0; col < width; col++) {
-      const mx = mxW + ((col + 0.5) / width) * (mxE - mxW);
-      const lon = mx * 360 - 180;
-      elevGrid[row * width + col] = sample(lon, lat);
+      const lon = (mxW + ((col + 0.5) / width) * (mxE - mxW)) * 360 - 180;
+      const e = sample(lon, lat);
+      // Sea/nodata → 0 so it falls in the lowest band (hidden by the province
+      // clip anyway); d3-contour dislikes NaN.
+      values[row * width + col] = Number.isFinite(e) && e > 0 ? e : 0;
     }
   }
 
-  // Ground spacing (metres) between output cells at the bbox centre latitude.
-  const latMid = (bbox[1] + bbox[3]) / 2;
-  const metresPerDegLat = 110540;
-  const metresPerDegLon = 111320 * Math.cos((latMid * Math.PI) / 180);
-  const dx = ((bbox[2] - bbox[0]) / width) * metresPerDegLon;
-  const dy = ((bbox[3] - bbox[1]) / height) * metresPerDegLat;
-
-  // Shade + tint into an RGB buffer.
-  const rgb = new Uint8Array(width * height * 3);
-  for (let row = 0; row < height; row++) {
-    for (let col = 0; col < width; col++) {
-      const elev = elevGrid[row * width + col];
-      const shade = hillshade(elevGrid, width, height, col, row, dx, dy);
-      const [r, g, b] = shadeColor(elev, shade);
-      const o = (row * width + col) * 3;
-      rgb[o] = Math.round(r);
-      rgb[o + 1] = Math.round(g);
-      rgb[o + 2] = Math.round(b);
-    }
-  }
-
+  const bands = buildBands(values, width, height, bbox);
+  const result: ReliefCollection = {
+    type: "FeatureCollection",
+    features: bands,
+  };
   mkdirSync(RELIEF_DIR, { recursive: true });
-  const png = encodePng(rgb, width, height);
-  writeFileSync(resolve(RELIEF_DIR, `${id}.png`), png);
-  writeFileSync(
-    resolve(RELIEF_DIR, `${id}.json`),
-    JSON.stringify({
-      bounds: bbox.map((v) => Number(v.toFixed(5))),
-      width,
-      height,
-    }),
-  );
-  return png.length;
+  writeFileSync(resolve(RELIEF_DIR, `${id}.json`), JSON.stringify(result));
+  return result;
 }
 
 async function main() {
@@ -423,18 +369,13 @@ async function main() {
         ) as Array<{ id: string }>
       ).map((p) => p.id);
 
-  let total = 0;
   for (const id of provinces) {
     process.stdout.write(`relief ${id} … `);
-    const bytes = await bakeProvince(id);
-    total += bytes;
-    console.log(`${Math.round(bytes / 1024)} KB`);
+    const r = await bakeProvince(id);
+    const kb = Math.round(Buffer.byteLength(JSON.stringify(r)) / 1024);
+    console.log(`${r.features.length} bands (${kb} KB)`);
   }
-  console.log(
-    `Baked ${provinces.length} province(s) → src/maps/relief/ (${Math.round(
-      total / 1024,
-    )} KB total)`,
-  );
+  console.log(`Baked ${provinces.length} province(s) → src/maps/relief/`);
 }
 
 if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {

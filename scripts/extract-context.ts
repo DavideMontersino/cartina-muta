@@ -24,7 +24,6 @@ import type {
   ContextLabel,
   ContextShape,
 } from "../src/maps/types";
-import { simplifyLine } from "./extract-water";
 import {
   type Bbox,
   clipRingToBbox,
@@ -33,6 +32,7 @@ import {
   expandBbox,
   pointInRing,
   ringCentroid,
+  simplifyLine,
 } from "./lib/geo";
 
 /** Margin added around the province bbox — matches extract-relief. */
@@ -150,13 +150,20 @@ function provinceDataBbox(id: string): Bbox {
   return collectionBbox(c.features);
 }
 
-function seaLabels(
+/**
+ * Seas touching the province bbox → a clipped fill shape + a label anchored on
+ * open water. A sea is "present" if any bbox probe point (outside the target)
+ * falls inside it — this correctly ignores far-away oceans whose bounding box
+ * wraps the globe, and clips the sea to the bbox for the fill.
+ */
+function seaContext(
   seas: NeFeature[],
   bbox: Bbox,
   targetRings: Ring[],
-): ContextLabel[] {
+): { shapes: ContextShape[]; labels: ContextLabel[] } {
   const [w, s, e, n] = bbox;
-  const found = new Map<string, [number, number]>();
+  const anchor = new Map<string, [number, number]>();
+  const present = new Map<string, NeFeature>();
   for (let iy = 0; iy <= SEA_PROBE; iy++) {
     for (let ix = 0; ix <= SEA_PROBE; ix++) {
       const pt: Position = [
@@ -168,17 +175,35 @@ function seaLabels(
         const raw = sea.properties.name_it || sea.properties.name;
         if (!raw) continue;
         const name = raw.charAt(0).toUpperCase() + raw.slice(1);
-        if (found.has(name)) continue;
+        if (anchor.has(name)) continue;
         if (outerRings(sea.geometry).some((r) => pointInRing(pt, r))) {
-          found.set(name, [
+          anchor.set(name, [
             roundTo(pt[0], PRECISION),
             roundTo(pt[1], PRECISION),
           ]);
+          present.set(name, sea);
         }
       }
     }
   }
-  return [...found.entries()].map(([name, at]) => ({ name, kind: "sea", at }));
+
+  const shapes: ContextShape[] = [];
+  for (const [name, sea] of present) {
+    const rings = clipAndSimplify(sea.geometry, bbox);
+    if (rings.length) {
+      shapes.push({
+        type: "Feature",
+        properties: { kind: "sea", name },
+        geometry: { type: "MultiPolygon", coordinates: rings.map((r) => [r]) },
+      });
+    }
+  }
+  const labels: ContextLabel[] = [...anchor.entries()].map(([name, at]) => ({
+    name,
+    kind: "sea",
+    at,
+  }));
+  return { shapes, labels };
 }
 
 async function bakeProvince(
@@ -225,7 +250,10 @@ async function bakeProvince(
     if (at) labels.push({ name, kind: "country", at });
   }
 
-  labels.push(...seaLabels(seas, bbox, targetRings));
+  const sea = seaContext(seas, bbox, targetRings);
+  // Sea shapes first so they render beneath the land context.
+  features.unshift(...sea.shapes);
+  labels.push(...sea.labels);
 
   const collection: ContextCollection = {
     type: "FeatureCollection",

@@ -24,7 +24,15 @@ import type {
   WaterFeature,
   WaterKind,
 } from "../src/maps/types";
-import { type Bbox, collectionBbox, ensureWinding } from "./lib/geo";
+import {
+  type Bbox,
+  collectionBbox,
+  ensureWinding,
+  simplifyLine,
+} from "./lib/geo";
+
+// Re-exported for extract-water.test.ts (the implementation now lives in lib/geo).
+export { simplifyLine } from "./lib/geo";
 
 /** Coordinate decimal places — 4 ≈ 11 m, matching extract-map. */
 const PRECISION = 4;
@@ -90,41 +98,6 @@ export function cleanRing(ring: Position[], places = PRECISION): Position[] {
   return out;
 }
 
-/** Perpendicular distance from point `p` to the segment `a`–`b` (degrees). */
-function perpDistance(p: Position, a: Position, b: Position): number {
-  const dx = b[0] - a[0];
-  const dy = b[1] - a[1];
-  const len2 = dx * dx + dy * dy;
-  if (len2 === 0) return Math.hypot(p[0] - a[0], p[1] - a[1]);
-  const t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2;
-  const cx = a[0] + t * dx;
-  const cy = a[1] + t * dy;
-  return Math.hypot(p[0] - cx, p[1] - cy);
-}
-
-/** Ramer–Douglas–Peucker line simplification. Keeps endpoints. */
-export function simplifyLine(
-  points: Position[],
-  tolerance = SIMPLIFY_TOLERANCE,
-): Position[] {
-  if (points.length <= 2) return points;
-  let maxDist = 0;
-  let index = 0;
-  const first = points[0];
-  const last = points[points.length - 1];
-  for (let i = 1; i < points.length - 1; i++) {
-    const d = perpDistance(points[i], first, last);
-    if (d > maxDist) {
-      maxDist = d;
-      index = i;
-    }
-  }
-  if (maxDist <= tolerance) return [first, last];
-  const left = simplifyLine(points.slice(0, index + 1), tolerance);
-  const right = simplifyLine(points.slice(index), tolerance);
-  return left.slice(0, -1).concat(right);
-}
-
 const ptKey = (p: Position) => `${p[0]},${p[1]}`;
 const isClosed = (r: Position[]) =>
   r.length >= 4 && ptKey(r[0]) === ptKey(r[r.length - 1]);
@@ -135,7 +108,7 @@ const isClosed = (r: Position[]) =>
  * it collapses below a valid polygon ring (4 points incl. the closing point).
  */
 function simplifyRing(ring: Position[]): Position[] | null {
-  const s = ensureWinding(simplifyLine(ring), true);
+  const s = ensureWinding(simplifyLine(ring, SIMPLIFY_TOLERANCE), true);
   const closed = ptKey(s[0]) !== ptKey(s[s.length - 1]) ? [...s, s[0]] : s;
   return closed.length >= 4 ? closed : null;
 }
@@ -226,7 +199,10 @@ export function elementToFeature(el: OsmElement): WaterFeature | null {
     return {
       type: "Feature",
       properties: prune(kind, name),
-      geometry: { type: "LineString", coordinates: simplifyLine(ring) },
+      geometry: {
+        type: "LineString",
+        coordinates: simplifyLine(ring, SIMPLIFY_TOLERANCE),
+      },
     };
   }
 

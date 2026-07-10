@@ -68,12 +68,21 @@ export interface OverviewCollection {
 
 /* ── Optional terrain layers (baked by scripts/extract-{relief,water,context}) */
 
-/** Placement metadata for a province's baked hillshade raster. */
-export interface ReliefMeta {
-  /** WGS84 bounds `[west, south, east, north]` of the image. */
-  bounds: [number, number, number, number];
-  width: number;
-  height: number;
+/**
+ * One hypsometric elevation band, baked as vector contours (scripts/extract-
+ * relief.ts). `level` is the band index (0 = lowest); `min`/`max` are its
+ * elevation bounds in metres (`max` null for the top band). Rendered stacked
+ * low→high and tinted by level in CSS, so the palette is retunable without a
+ * re-bake.
+ */
+export interface ReliefBand {
+  type: "Feature";
+  properties: { level: number; min: number; max: number | null };
+  geometry: Polygon | MultiPolygon;
+}
+export interface ReliefCollection {
+  type: "FeatureCollection";
+  features: ReliefBand[];
 }
 
 /** A river/lake feature from OpenStreetMap (see scripts/extract-water.ts). */
@@ -93,7 +102,7 @@ export interface WaterCollection {
  * comuni borders), adjacent foreign countries, and outside-only labels
  * (neighbour / country / sea names). Baked by scripts/extract-context.ts.
  */
-export type ContextKind = "province" | "country";
+export type ContextKind = "province" | "country" | "sea";
 export interface ContextShape {
   type: "Feature";
   properties: { kind: ContextKind; name: string };

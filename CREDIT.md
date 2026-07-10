@@ -24,13 +24,14 @@ Attribution for all third-party data and assets used in this project.
 
 ## Terrain layer (optional tinted hillshade + waterways + context)
 
-The optional "Rilievo" toggle (available in every game mode) draws a self-baked,
-theme-tinted shaded relief, rivers/lakes, and neighbour/country/sea context
-behind the comuni. Unlike a third-party basemap, everything is baked from open
-data by rerunnable scripts and committed per province, so the look is fully
-restylable and no place names spoil the blind-map guess. Three sources:
+The optional "Rilievo" toggle (available in every game mode) draws self-baked,
+theme-tinted **vector** relief (hypsometric contour bands), rivers/lakes, and
+neighbour/country/sea context around the comuni. Unlike a third-party basemap,
+everything is baked from open data by rerunnable scripts and committed per
+province, so the look is fully restylable (relief colours are pure CSS) and no
+place names spoil the blind-map guess. Three sources:
 
-### Elevation (hillshade)
+### Elevation (relief bands)
 
 - **Source:** [AWS Terrain Tiles / Mapzen "Terrarium" terrain-RGB](https://registry.opendata.aws/terrain-tiles/)
   (`s3.amazonaws.com/elevation-tiles-prod/terrarium`).
@@ -40,9 +41,9 @@ restylable and no place names spoil the blind-map guess. Three sources:
 - **License:** the underlying data is in the public domain / under the licenses of
   the respective source agencies; the tileset is provided by Mapzen/Nextzen and
   hosted openly by AWS.
-- **Used for:** `scripts/extract-relief.ts` fetches the covering DEM tiles, computes a
-  hillshade, tints it to the parchment palette, and writes one PNG + WGS84 bounds per
-  province to `src/maps/relief/`.
+- **Used for:** `scripts/extract-relief.ts` fetches the covering DEM tiles, builds an
+  elevation grid, and runs `d3-contour` to bake vector hypsometric bands (GeoJSON) per
+  province to `src/maps/relief/`. Colours are applied in CSS.
 
 ### Waterways
 

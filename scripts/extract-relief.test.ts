@@ -1,92 +1,97 @@
 import { describe, expect, it } from "vitest";
 import {
+  bandGeometry,
+  buildBands,
   decodeElevation,
-  hillshade,
-  hypsometricColor,
-  outputSize,
-  shadeColor,
+  gridSize,
+  gridToLonLat,
 } from "./extract-relief";
+import type { Bbox } from "./lib/geo";
+import { signedArea } from "./lib/geo";
 
 describe("decodeElevation", () => {
   it("decodes Terrarium terrain-RGB to metres", () => {
-    // 32768 offset: (128,0,0) → 0 m sea level.
     expect(decodeElevation(128, 0, 0)).toBe(0);
-    // Monviso-ish: 32768 + 3841 = R*256+G+B/256 → R=143, G=1, B=0 → 3841.
     expect(decodeElevation(143, 1, 0)).toBeCloseTo(3841, 5);
     expect(decodeElevation(0, 0, 0)).toBe(-32768);
   });
 });
 
-describe("hypsometricColor", () => {
-  it("clamps below the first and above the last stop", () => {
-    expect(hypsometricColor(-100)).toEqual([143, 157, 99]);
-    expect(hypsometricColor(9000)).toEqual([236, 229, 210]);
-  });
+describe("gridToLonLat", () => {
+  const bbox: Bbox = [7, 44, 8, 45];
 
-  it("interpolates linearly between stops", () => {
-    // Midway between 0 m [143,157,99] and 250 m [170,172,110].
-    const mid = hypsometricColor(125);
-    expect(mid[0]).toBeCloseTo(156.5, 5);
-    expect(mid[1]).toBeCloseTo(164.5, 5);
-    expect(mid[2]).toBeCloseTo(104.5, 5);
-  });
-
-  it("rises monotonically toward pale peaks (green→pale)", () => {
-    expect(hypsometricColor(4200)[0]).toBeGreaterThan(hypsometricColor(0)[0]);
+  it("maps grid corners to the bbox corners (y down = north→south)", () => {
+    const nw = gridToLonLat(0, 0, 100, 100, bbox);
+    const se = gridToLonLat(100, 100, 100, 100, bbox);
+    expect(nw[0]).toBeCloseTo(7, 6); // west
+    expect(nw[1]).toBeCloseTo(45, 6); // north (grid y=0)
+    expect(se[0]).toBeCloseTo(8, 6); // east
+    expect(se[1]).toBeCloseTo(44, 6); // south
   });
 });
 
-describe("hillshade", () => {
-  it("lights flat ground to cos(zenith) — full sun at altitude 45°", () => {
-    const flat = new Float32Array(9).fill(100);
-    const s = hillshade(flat, 3, 3, 1, 1, 30, 30);
-    expect(s).toBeCloseTo(Math.cos((45 * Math.PI) / 180), 6);
-  });
-
-  it("brightens slopes facing the sun more than those facing away", () => {
-    const w = 3;
-    const h = 3;
-    // Elevation rising toward the east → the slope *faces west*, toward the
-    // NW sun (azimuth 315°), so it should be brighter than its east-facing twin.
-    const facesWest = new Float32Array([0, 0, 100, 0, 0, 100, 0, 0, 100]);
-    const facesEast = new Float32Array([100, 0, 0, 100, 0, 0, 100, 0, 0]);
-    const litWest = hillshade(facesWest, w, h, 1, 1, 30, 30);
-    const litEast = hillshade(facesEast, w, h, 1, 1, 30, 30);
-    expect(litWest).toBeGreaterThan(litEast);
-    expect(litEast).toBeGreaterThanOrEqual(0);
+describe("gridSize", () => {
+  it("puts the long side on the wider Mercator axis", () => {
+    const wide = gridSize([6.6, 44.4, 8.5, 44.9], 480);
+    expect(wide.width).toBe(480);
+    expect(wide.height).toBeLessThan(480);
   });
 });
 
-describe("shadeColor", () => {
-  it("paints sea/nodata with the flat sea tint", () => {
-    expect(shadeColor(0, 0.9)).toEqual([176, 201, 197]);
-    expect(shadeColor(-50, 0.5)).toEqual([176, 201, 197]);
-    expect(shadeColor(Number.NaN, 0.5)).toEqual([176, 201, 197]);
-  });
+describe("bandGeometry", () => {
+  const bbox: Bbox = [7, 44, 8, 45];
 
-  it("keeps the true hypsometric colour at mid shade (0.5)", () => {
-    const c = shadeColor(600, 0.5);
-    expect(c).toEqual(hypsometricColor(600));
-  });
-
-  it("darkens shadowed land and brightens lit land", () => {
-    const dark = shadeColor(600, 0.1);
-    const bright = shadeColor(600, 0.9);
-    expect(dark[0]).toBeLessThan(bright[0]);
-    for (const ch of [...dark, ...bright]) {
-      expect(ch).toBeGreaterThanOrEqual(0);
-      expect(ch).toBeLessThanOrEqual(255);
+  it("maps a grid polygon to WGS84 with a clockwise exterior ring", () => {
+    // A counter-clockwise square in grid space (y-down).
+    const grid = {
+      type: "MultiPolygon" as const,
+      coordinates: [
+        [
+          [
+            [20, 20],
+            [20, 80],
+            [80, 80],
+            [80, 20],
+            [20, 20],
+          ],
+        ],
+      ],
+    };
+    const geom = bandGeometry(grid, 100, 100, bbox);
+    expect(geom).not.toBeNull();
+    const ring = geom?.coordinates[0][0] as number[][];
+    // Closed and clockwise (negative signed area) so spherical geoPath fills it.
+    expect(ring[0]).toEqual(ring[ring.length - 1]);
+    expect(signedArea(ring)).toBeLessThan(0);
+    // All vertices inside the bbox.
+    for (const [x, y] of ring) {
+      expect(x).toBeGreaterThanOrEqual(7);
+      expect(x).toBeLessThanOrEqual(8);
+      expect(y).toBeGreaterThanOrEqual(44);
+      expect(y).toBeLessThanOrEqual(45);
     }
   });
+
+  it("returns null when nothing survives", () => {
+    const empty = { type: "MultiPolygon" as const, coordinates: [] };
+    expect(bandGeometry(empty, 100, 100, bbox)).toBeNull();
+  });
 });
 
-describe("outputSize", () => {
-  it("puts the long side on the wider Mercator axis", () => {
-    const wide = outputSize([6.6, 44.4, 8.5, 44.9], 1024);
-    expect(wide.width).toBe(1024);
-    expect(wide.height).toBeLessThan(1024);
-    const tall = outputSize([7.0, 43.0, 7.4, 45.5], 1024);
-    expect(tall.height).toBe(1024);
-    expect(tall.width).toBeLessThan(1024);
+describe("buildBands", () => {
+  it("emits a band per threshold that the data reaches", () => {
+    // A 20×20 grid: a central plateau at 1000 m, 0 elsewhere.
+    const w = 20;
+    const h = 20;
+    const values = new Array(w * h).fill(0);
+    for (let y = 6; y < 14; y++) {
+      for (let x = 6; x < 14; x++) values[y * w + x] = 1000;
+    }
+    const bands = buildBands(values, w, h, [7, 44, 8, 45], [0, 500, 1500]);
+    // Threshold 0 covers everything; 500 covers the plateau; 1500 nothing.
+    const levels = bands.map((b) => b.properties.level);
+    expect(levels).toContain(0);
+    expect(levels).toContain(1);
+    expect(bands.every((b) => b.geometry.coordinates.length > 0)).toBe(true);
   });
 });

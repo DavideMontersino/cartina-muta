@@ -6,7 +6,7 @@ import type {
   MapDefinition,
   MapFeature,
   ProvinceMeta,
-  ReliefMeta,
+  ReliefCollection,
   WaterCollection,
 } from "./types";
 
@@ -67,11 +67,7 @@ export async function loadMap(id: string): Promise<MapDefinition> {
    lazily only when the terrain toggle is on. Each is code-split, and a province
    with no baked data simply resolves to null (the layer renders nothing). */
 
-const reliefImages = import.meta.glob<string>("./relief/*.png", {
-  query: "?url",
-  import: "default",
-});
-const reliefBounds = import.meta.glob<{ default: ReliefMeta }>(
+const reliefLoaders = import.meta.glob<{ default: ReliefCollection }>(
   "./relief/*.json",
 );
 const waterLoaders = import.meta.glob<{ default: WaterCollection }>(
@@ -81,19 +77,11 @@ const contextLoaders = import.meta.glob<{ default: ContextCollection }>(
   "./context/*.json",
 );
 
-/** A province's baked hillshade: its image URL plus WGS84 placement bounds. */
-export interface Relief extends ReliefMeta {
-  url: string;
-}
-
-/** Load the baked relief raster for a province, or null if none is baked. */
-export async function loadRelief(id: string): Promise<Relief | null> {
-  const image = reliefImages[`./relief/${id}.png`];
-  const bounds = reliefBounds[`./relief/${id}.json`];
-  if (!image || !bounds) return null;
-  // image() resolves to the asset URL string (via the `?url` glob query).
-  const [url, meta] = await Promise.all([image(), bounds()]);
-  return { url, ...meta.default };
+/** Load the baked relief (vector hypsometric bands), or null if none is baked. */
+export async function loadRelief(id: string): Promise<ReliefCollection | null> {
+  const loader = reliefLoaders[`./relief/${id}.json`];
+  if (!loader) return null;
+  return (await loader()).default;
 }
 
 /** Load the baked waterways for a province, or null if none is baked. */

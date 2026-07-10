@@ -42,9 +42,39 @@ export function CreditsPanel() {
         </p>
       </section>
       <section className="credits__section">
+        <h3>Rilievo, acque e contesto</h3>
+        <p>
+          Rilievo (fasce ipsometriche) da{" "}
+          <a
+            href="https://registry.opendata.aws/terrain-tiles/"
+            target="_blank"
+            rel="noreferrer"
+          >
+            AWS Terrain Tiles
+          </a>{" "}
+          (Mapzen/Terrarium). Fiumi e laghi ©{" "}
+          <a
+            href="https://www.openstreetmap.org/copyright"
+            target="_blank"
+            rel="noreferrer"
+          >
+            OpenStreetMap
+          </a>{" "}
+          (ODbL). Province, stati e mari confinanti da{" "}
+          <a
+            href="https://www.naturalearthdata.com/"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Natural Earth
+          </a>{" "}
+          (dominio pubblico).
+        </p>
+      </section>
+      <section className="credits__section">
         <h3>Font</h3>
         <p>
-          Fraunces e Inter, da{" "}
+          Fraunces, Inter e Pinyon Script, da{" "}
           <a href="https://fonts.google.com" target="_blank" rel="noreferrer">
             Google Fonts
           </a>{" "}

@@ -153,6 +153,36 @@ export function clipRingToBbox(ring: Pt[], bbox: Bbox): Pt[] {
   return out;
 }
 
+/** Perpendicular distance from point `p` to the segment `a`–`b`. */
+function perpDistance(p: Pt, a: Pt, b: Pt): number {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return Math.hypot(p[0] - a[0], p[1] - a[1]);
+  const t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2;
+  return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+}
+
+/** Ramer–Douglas–Peucker line simplification. Keeps endpoints. */
+export function simplifyLine(points: Pt[], tolerance: number): Pt[] {
+  if (points.length <= 2) return points;
+  let maxDist = 0;
+  let index = 0;
+  const first = points[0];
+  const last = points[points.length - 1];
+  for (let i = 1; i < points.length - 1; i++) {
+    const d = perpDistance(points[i], first, last);
+    if (d > maxDist) {
+      maxDist = d;
+      index = i;
+    }
+  }
+  if (maxDist <= tolerance) return [first, last];
+  return simplifyLine(points.slice(0, index + 1), tolerance)
+    .slice(0, -1)
+    .concat(simplifyLine(points.slice(index), tolerance));
+}
+
 /** Shoelace signed area of a ring (positive = counter-clockwise in lon/lat). */
 export function signedArea(ring: Pt[]): number {
   let a = 0;
