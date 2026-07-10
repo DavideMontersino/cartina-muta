@@ -1,4 +1,4 @@
-import { getPhrasePool } from "../phrases/registry";
+import { getFacts, getFailPool, getPhrasePool } from "../phrases/registry";
 import type { ReactionEvent } from "../phrases/types";
 
 const STREAK_MILESTONES = [10, 5, 3] as const;
@@ -21,15 +21,39 @@ export function selectReactionEvent(
   return "wrong";
 }
 
-/** Picks a reaction phrase for a guess. `rng` is injectable for tests. */
+const pick = <T>(pool: T[], rng: () => number): T =>
+  pool[Math.floor(rng() * pool.length)];
+
+/**
+ * Picks a reaction phrase for a guess. When `istat` (the current target comune)
+ * is given, its municipality-level win/miss lines take precedence over the
+ * province/region/generic pools. `rng` is injectable for tests.
+ */
 export function pickReaction(
   provinceId: string,
   correct: boolean,
   correctStreak: number,
   wrongStreak: number,
   rng: () => number = Math.random,
+  istat?: string,
 ): string {
   const event = selectReactionEvent(correct, correctStreak, wrongStreak);
-  const pool = getPhrasePool(provinceId, event);
-  return pool[Math.floor(rng() * pool.length)];
+  return pick(getPhrasePool(provinceId, event, istat), rng);
+}
+
+/** Picks a give-up / reveal line for a comune (its `fail` lines, else generic). */
+export function pickFailReaction(
+  istat?: string,
+  rng: () => number = Math.random,
+): string {
+  return pick(getFailPool(istat), rng);
+}
+
+/** Picks one trivia fact for a comune, or null when it has none. */
+export function pickFact(
+  istat?: string,
+  rng: () => number = Math.random,
+): string | null {
+  const facts = getFacts(istat);
+  return facts.length > 0 ? pick(facts, rng) : null;
 }

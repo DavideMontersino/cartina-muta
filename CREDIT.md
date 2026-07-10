@@ -65,6 +65,17 @@ restylable and no place names spoil the blind-map guess. Three sources:
 On-map attribution ("Rilievo: Terrain Tiles · Acque © OpenStreetMap · Confini:
 Natural Earth") is shown whenever the layer is active.
 
+## Campanile photos (municipality flavour popups)
+
+- **Source:** none committed yet. The per-comune override layer
+  (`src/phrases/municipalities.ts`) has an optional `campanile` field that, when
+  populated, shows a photo of the comune's bell tower on the win/give-up popup.
+- **Requirement:** any photo added here **must** be credited in this section
+  (source, author, licence). Prefer public-domain or CC-licensed images (e.g.
+  Wikimedia Commons) and import them as local assets rather than hot-linking, so
+  attribution and availability stay under our control.
+- **Used for:** the `.reaction-toast__campanile` image in `GameScreen.tsx`.
+
 ## Libraries
 
 - **qrcode-generator** — [kazuhikoarase/qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) — [MIT License](https://opensource.org/licenses/MIT) — used to render the room-invite QR code client-side (as an inline SVG) in multiplayer lobbies.

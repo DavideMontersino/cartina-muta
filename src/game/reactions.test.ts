@@ -1,7 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { defaultPhrases } from "../phrases/data/default";
-import { getPhrasePool } from "../phrases/registry";
-import { pickReaction, selectReactionEvent } from "./reactions";
+import { toPhrases } from "../phrases/data/to";
+import { municipalityFlavor } from "../phrases/municipalities";
+import { regionPhrases } from "../phrases/regions";
+import {
+  getCampanile,
+  getFacts,
+  getFailPool,
+  getPhrasePool,
+} from "../phrases/registry";
+import {
+  pickFact,
+  pickFailReaction,
+  pickReaction,
+  selectReactionEvent,
+} from "./reactions";
+
+const TORINO = "001272";
+const CARRU = "004043";
 
 describe("selectReactionEvent", () => {
   it("returns plain correct/wrong outside of milestone streaks", () => {
@@ -93,6 +109,66 @@ describe("getPhrasePool", () => {
   });
 });
 
+describe("getPhrasePool — override stack", () => {
+  it("uses the municipality win/miss lines over the province pool", () => {
+    expect(getPhrasePool("to", "correct", TORINO)).toBe(
+      municipalityFlavor[TORINO].win,
+    );
+    expect(getPhrasePool("cn", "wrong", CARRU)).toBe(
+      municipalityFlavor[CARRU].miss,
+    );
+  });
+
+  it("only overrides plain correct/wrong at the municipality layer", () => {
+    // Torino has no streak override, so a streak event falls through to the
+    // province ("to") pool, not anything municipality-specific.
+    expect(getPhrasePool("to", "streakCorrect3", TORINO)).toBe(
+      toPhrases.streakCorrect3,
+    );
+  });
+
+  it("falls back to the province pool for an unknown istat", () => {
+    expect(getPhrasePool("to", "correct", "999999")).toBe(toPhrases.correct);
+  });
+
+  it("falls back to the region pool when comune and province are silent", () => {
+    // "to" defines no streakWrong5; its region (Piemonte) does.
+    expect(getPhrasePool("to", "streakWrong5")).toBe(
+      regionPhrases.Piemonte.streakWrong5,
+    );
+  });
+});
+
+describe("fail / facts / campanile", () => {
+  it("returns the comune's fail lines, else a generic give-up pool", () => {
+    expect(getFailPool(TORINO)).toBe(municipalityFlavor[TORINO].fail);
+    const generic = getFailPool("999999");
+    expect(generic.length).toBeGreaterThan(0);
+    expect(generic).not.toBe(municipalityFlavor[TORINO].fail);
+  });
+
+  it("exposes facts only for comuni that have them", () => {
+    expect(getFacts(TORINO).length).toBeGreaterThan(0);
+    expect(getFacts("999999")).toEqual([]);
+    expect(getFacts(undefined)).toEqual([]);
+  });
+
+  it("pickFact returns null when a comune has no facts", () => {
+    expect(pickFact("999999")).toBeNull();
+    expect(pickFact(TORINO, () => 0)).toBe(getFacts(TORINO)[0]);
+  });
+
+  it("getCampanile is undefined until a comune populates one", () => {
+    expect(getCampanile("999999")).toBeUndefined();
+  });
+
+  it("pickFailReaction is deterministic given a fixed rng", () => {
+    expect(pickFailReaction(TORINO, () => 0)).toBe(
+      municipalityFlavor[TORINO].fail?.[0],
+    );
+  });
+});
+
 describe("pickReaction", () => {
   it("is deterministic given a fixed rng", () => {
     const text = pickReaction("bo", true, 1, 0, () => 0);
@@ -103,5 +179,10 @@ describe("pickReaction", () => {
     const pool = defaultPhrases.wrong;
     const text = pickReaction("bo", false, 0, 1, () => 0.999999);
     expect(text).toBe(pool[pool.length - 1]);
+  });
+
+  it("draws from the municipality pool when given the target istat", () => {
+    const text = pickReaction("to", true, 1, 0, () => 0, TORINO);
+    expect(text).toBe(municipalityFlavor[TORINO].win?.[0]);
   });
 });

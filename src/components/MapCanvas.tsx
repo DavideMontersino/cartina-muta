@@ -20,6 +20,7 @@ import type {
   MapDefinition,
   WaterCollection,
 } from "../maps/types";
+import { nicknameFor } from "../phrases/nicknames";
 import { usePanZoom } from "./usePanZoom";
 
 interface MapCanvasProps {
@@ -142,9 +143,18 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
 
       const contextLabels = (data.context?.labels ?? []).flatMap((l, i) => {
         const p = projection(l.at);
-        return p
-          ? [{ key: `lbl-${i}`, kind: l.kind, name: l.name, x: p[0], y: p[1] }]
-          : [];
+        if (!p) return [];
+        const nick = nicknameFor(l.name);
+        return [
+          {
+            key: `lbl-${i}`,
+            kind: l.kind,
+            name: nick ?? l.name,
+            nick: nick !== null,
+            x: p[0],
+            y: p[1],
+          },
+        ];
       });
 
       const water = (data.water?.features ?? []).map((f, i) => {
@@ -268,7 +278,7 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
                   key={l.key}
                   x={l.x}
                   y={l.y}
-                  className={`context-label context-label--${l.kind}`}
+                  className={`context-label context-label--${l.kind} ${l.nick ? "context-label--nick" : ""}`}
                 >
                   {l.name}
                 </text>

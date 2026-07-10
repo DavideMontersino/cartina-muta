@@ -14,11 +14,12 @@ import {
   type GameConfig,
   reducer,
 } from "../game/engine";
-import { pickReaction } from "../game/reactions";
+import { pickFact, pickFailReaction, pickReaction } from "../game/reactions";
 import type {
   ActionLogEntry,
   ScoreSubmissionPayload,
 } from "../leaderboard/types";
+import { getCampanile } from "../phrases/registry";
 import { ConfirmExitDialog } from "./ConfirmExitDialog";
 import { HamburgerMenu } from "./HamburgerMenu";
 import { MapCanvas, type MapCanvasRef } from "./MapCanvas";
@@ -50,9 +51,15 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   const [wrongIndex, setWrongIndex] = useState<number | null>(null);
   const [wrongKey, setWrongKey] = useState(0);
   const [revealIndex, setRevealIndex] = useState<number | null>(null);
-  const [reaction, setReaction] = useState<{ id: number; text: string } | null>(
-    null,
-  );
+  const [reaction, setReaction] = useState<{
+    id: number;
+    text: string;
+    tone: "win" | "miss" | "fail";
+    /** A trivia fact for the revealed comune (win/fail only). */
+    fact?: string | null;
+    /** Campanile photo URL for the revealed comune (win/fail only). */
+    campanile?: string;
+  } | null>(null);
   const [energyToast, setEnergyToast] = useState<{
     id: number;
     kind: "hit" | "miss";
@@ -68,6 +75,10 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   // "3rd miss" auto-reveal (which advances the round before this effect
   // sees it) still knows which region to flash, mirroring the skip flow.
   const pendingEnergyTargetRef = useRef<number | null>(null);
+  // ISTAT of the comune the current round is asking for — captured at guess/skip
+  // time so reactions resolve municipality-level flavour even after the reducer
+  // has advanced the cursor (a correct guess moves on to the next target).
+  const roundTargetIstatRef = useRef<string | null>(null);
   // Precise time the current round's target was presented — energy mode's
   // speed bonus needs this, but the reducer only tracks rounded whole
   // seconds via "tick".
@@ -204,15 +215,28 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   // Energy mode shows its own structured score/distance toast instead.
   useEffect(() => {
     if (isEnergy || !state.feedback) return;
+    const istat = roundTargetIstatRef.current ?? undefined;
+    const correct = state.feedback.correct;
     const text = pickReaction(
       config.map.id,
-      state.feedback.correct,
+      correct,
       state.correctStreak,
       state.wrongStreak,
+      Math.random,
+      istat,
     );
-    setReaction({ id: state.feedback.id, text });
+    // The comune is only revealed on a win here, so its fact/campanile ride
+    // along only then — showing them on a miss would spoil the still-hidden
+    // target. (Giving up via Salta shows them through its own fail toast.)
+    setReaction({
+      id: state.feedback.id,
+      text,
+      tone: correct ? "win" : "miss",
+      fact: correct ? pickFact(istat) : undefined,
+      campanile: correct ? getCampanile(istat) : undefined,
+    });
     window.clearTimeout(reactionTimer.current);
-    reactionTimer.current = window.setTimeout(() => setReaction(null), 2200);
+    reactionTimer.current = window.setTimeout(() => setReaction(null), 2600);
   }, [
     isEnergy,
     state.feedback,
@@ -236,6 +260,8 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
             false,
             state.correctStreak,
             state.wrongStreak,
+            Math.random,
+            roundTargetIstatRef.current ?? undefined,
           ),
     });
     window.clearTimeout(energyToastTimer.current);
@@ -268,6 +294,21 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
     // otherwise re-fires on this dispatch's status change and can
     // overwrite this reveal with a stale target from an earlier miss.
     pendingEnergyTargetRef.current = target;
+    const istat = config.map.features[target].istat;
+    roundTargetIstatRef.current = istat;
+    // Giving up reveals the answer, so its taunt/fact/campanile show now.
+    // Energy mode has its own reveal UI, so this fail toast is classic-only.
+    if (!isEnergy) {
+      window.clearTimeout(reactionTimer.current);
+      setReaction({
+        id: performance.now(),
+        text: pickFailReaction(istat),
+        tone: "fail",
+        fact: pickFact(istat),
+        campanile: getCampanile(istat),
+      });
+      reactionTimer.current = window.setTimeout(() => setReaction(null), 2600);
+    }
     logRef.current.push({
       tMs: Math.round(performance.now() - startRef.current),
       type: "skip",
@@ -288,7 +329,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
     };
 
     runAnimation();
-  }, [target, config.map.features, isRevealing]);
+  }, [target, config.map.features, isRevealing, isEnergy]);
 
   const handlePick = useCallback(
     (index: number) => {
@@ -296,6 +337,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
       // Energy mode's 3rd-miss auto-reveal advances the round before the reveal
       // effect runs, so capture the target now (mirrors the skip flow).
       if (isEnergy) pendingEnergyTargetRef.current = target;
+      roundTargetIstatRef.current = config.map.features[target].istat;
       logRef.current.push({
         tMs: Math.round(performance.now() - startRef.current),
         type: "guess",
@@ -503,9 +545,19 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
         {reaction && (
           <div
             key={reaction.id}
-            className={`reaction-toast ${state.feedback?.correct ? "reaction-toast--correct" : "reaction-toast--wrong"}`}
+            className={`reaction-toast reaction-toast--${reaction.tone}`}
           >
-            {reaction.text}
+            {reaction.campanile && (
+              <img
+                className="reaction-toast__campanile"
+                src={reaction.campanile}
+                alt="Campanile"
+              />
+            )}
+            <span className="reaction-toast__text">{reaction.text}</span>
+            {reaction.fact && (
+              <span className="reaction-toast__fact">{reaction.fact}</span>
+            )}
           </div>
         )}
         <MapCanvas
