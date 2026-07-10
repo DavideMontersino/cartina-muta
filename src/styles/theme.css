@@ -558,11 +558,11 @@ button {
   stroke-width: 2px;
 }
 
-/* ── Terrain layer (optional shaded-relief + waterways basemap) ─────────────
-   Real map tiles painted behind the comuni. They fill the whole viewBox, so
-   the context around the province — neighbouring comuni, the sea, and other
-   countries — shows through naturally. When on, region fills go translucent so
-   the terrain reads through while the comune borders stay crisp for guessing. */
+/* ── Terrain layer (optional self-baked hillshade + waterways + context) ────
+   A tinted hillshade raster (baked to the parchment palette) sits behind the
+   comuni, with neighbour/country context fills, waterways, and outside-only
+   labels layered on top. When on, region fills go translucent so the relief
+   reads through while the comune borders stay crisp for guessing. */
 .map-canvas--terrain .region {
   fill: var(--region-pending);
   fill-opacity: 0;
@@ -582,12 +582,83 @@ button {
   fill-opacity: 0.85;
 }
 
+/* Context: neighbouring provinces and adjacent countries around the target.
+   Faint so the target province reads as the focus; foreign land tinted apart. */
+.context-shape {
+  stroke: var(--line);
+  stroke-width: 0.5;
+  stroke-opacity: 0.5;
+  stroke-linejoin: round;
+}
+.context-shape--province {
+  fill: var(--ink);
+  fill-opacity: 0.06;
+}
+.context-shape--country {
+  fill: var(--terracotta);
+  fill-opacity: 0.08;
+  stroke-dasharray: 3 2;
+}
+
+/* Waterways: rivers/canals as thin blue-grey strokes, water bodies filled. */
+.water {
+  pointer-events: none;
+}
+.water--line {
+  fill: none;
+  stroke: var(--teal);
+  stroke-opacity: 0.65;
+  stroke-width: 0.7;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.water--canal {
+  stroke-opacity: 0.5;
+  stroke-dasharray: 2 1.5;
+}
+.water--body {
+  fill: var(--teal);
+  fill-opacity: 0.42;
+  stroke: var(--teal);
+  stroke-opacity: 0.55;
+  stroke-width: 0.4;
+}
+
+/* Outside-only context labels (neighbour / country / sea names). Never inside
+   the target province — the bake guarantees each anchor sits in its own area. */
+.context-label {
+  font-family: var(--font-body);
+  fill: var(--ink-soft);
+  text-anchor: middle;
+  dominant-baseline: middle;
+  paint-order: stroke;
+  stroke: rgba(242, 233, 214, 0.8);
+  stroke-width: 2.4px;
+  letter-spacing: 0.02em;
+}
+.context-label--province {
+  font-size: 11px;
+  fill-opacity: 0.75;
+}
+.context-label--country {
+  font-size: 13px;
+  font-weight: 700;
+  fill: var(--terracotta);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.context-label--sea {
+  font-size: 12px;
+  font-style: italic;
+  fill: var(--teal);
+}
+
 .terrain-attribution {
   font-family: var(--font-body);
-  font-size: 11px;
-  fill: rgba(40, 40, 40, 0.72);
+  font-size: 10px;
+  fill: rgba(40, 40, 40, 0.6);
   paint-order: stroke;
-  stroke: rgba(255, 255, 255, 0.65);
+  stroke: rgba(255, 255, 255, 0.55);
   stroke-width: 2px;
   text-anchor: end;
   pointer-events: none;

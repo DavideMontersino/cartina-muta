@@ -22,19 +22,48 @@ Attribution for all third-party data and assets used in this project.
   the repo root — not committed (same pattern as `italy-municipalities.geojson`, see
   `scripts/extract-map.ts`). Comuni missing from that file default to population 1.
 
-## Terrain layer (optional shaded-relief basemap)
+## Terrain layer (optional tinted hillshade + waterways + context)
 
-- **Source:** [Esri "World Terrain Base"](https://www.arcgis.com/home/item.html?id=c61ad8ab017d49e1a82f580ee1298931)
-  raster tiles (`server.arcgisonline.com/ArcGIS/rest/services/World_Terrain_Base`),
-  a key-free XYZ tile service.
-- **Upstream data:** Esri, USGS, NOAA (shaded relief + hydrography).
-- **License:** served under Esri's terms for the ArcGIS Online basemaps; attribution
-  ("Rilievo: Esri, USGS, NOAA") is shown on the map whenever the layer is active.
-- **Used for:** the optional terrain toggle available in every game mode — draws
-  real-world relief, waterways, coastline and neighbouring territory (sea / other
-  provinces / other countries) behind the comuni. Aligned to the map's own
-  Web-Mercator projection (`src/game/tiles.ts`); tiles are fetched by the browser
-  at runtime, nothing is committed.
+The optional "Rilievo" toggle (available in every game mode) draws a self-baked,
+theme-tinted shaded relief, rivers/lakes, and neighbour/country/sea context
+behind the comuni. Unlike a third-party basemap, everything is baked from open
+data by rerunnable scripts and committed per province, so the look is fully
+restylable and no place names spoil the blind-map guess. Three sources:
+
+### Elevation (hillshade)
+
+- **Source:** [AWS Terrain Tiles / Mapzen "Terrarium" terrain-RGB](https://registry.opendata.aws/terrain-tiles/)
+  (`s3.amazonaws.com/elevation-tiles-prod/terrarium`).
+- **Upstream data:** a global DEM composited from public sources (SRTM, GMTED,
+  ETOPO1, the National Elevation Dataset, and others — see the AWS Terrain Tiles
+  attribution).
+- **License:** the underlying data is in the public domain / under the licenses of
+  the respective source agencies; the tileset is provided by Mapzen/Nextzen and
+  hosted openly by AWS.
+- **Used for:** `scripts/extract-relief.ts` fetches the covering DEM tiles, computes a
+  hillshade, tints it to the parchment palette, and writes one PNG + WGS84 bounds per
+  province to `src/maps/relief/`.
+
+### Waterways
+
+- **Source:** [OpenStreetMap](https://www.openstreetmap.org/) via the
+  [Overpass API](https://overpass-api.de/).
+- **License:** [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/) — © OpenStreetMap contributors.
+- **Used for:** `scripts/extract-water.ts` queries rivers/canals/lakes/reservoirs per
+  province bbox and writes `src/maps/water/<id>.json`.
+
+### Neighbour / country / sea context
+
+- **Source:** [Natural Earth](https://www.naturalearthdata.com/) — `ne_10m_admin_0_countries`
+  (adjacent countries) and `ne_10m_geography_marine_polys` (sea names), via
+  [nvkelso/natural-earth-vector](https://github.com/nvkelso/natural-earth-vector).
+  Neighbouring provinces reuse the in-repo `src/maps/overview.json`.
+- **License:** Natural Earth is in the **public domain**.
+- **Used for:** `scripts/extract-context.ts` writes neighbour/country outlines and
+  outside-only labels (never inside the target province) to `src/maps/context/<id>.json`.
+
+On-map attribution ("Rilievo: Terrain Tiles · Acque © OpenStreetMap · Confini:
+Natural Earth") is shown whenever the layer is active.
 
 ## Libraries
 

@@ -1,4 +1,9 @@
-import type { MultiPolygon, Polygon } from "geojson";
+import type {
+  LineString,
+  MultiLineString,
+  MultiPolygon,
+  Polygon,
+} from "geojson";
 
 /** One municipality (comune) with its border geometry. */
 export interface MapFeature {
@@ -59,4 +64,50 @@ export interface OverviewCollection {
     properties: { id: string; name: string };
     geometry: Polygon | MultiPolygon;
   }>;
+}
+
+/* ── Optional terrain layers (baked by scripts/extract-{relief,water,context}) */
+
+/** Placement metadata for a province's baked hillshade raster. */
+export interface ReliefMeta {
+  /** WGS84 bounds `[west, south, east, north]` of the image. */
+  bounds: [number, number, number, number];
+  width: number;
+  height: number;
+}
+
+/** A river/lake feature from OpenStreetMap (see scripts/extract-water.ts). */
+export type WaterKind = "river" | "stream" | "canal" | "lake" | "reservoir";
+export interface WaterFeature {
+  type: "Feature";
+  properties: { kind: WaterKind; name?: string };
+  geometry: LineString | MultiLineString | Polygon | MultiPolygon;
+}
+export interface WaterCollection {
+  type: "FeatureCollection";
+  features: WaterFeature[];
+}
+
+/**
+ * Context around the played province: neighbouring provinces (dissolved, no
+ * comuni borders), adjacent foreign countries, and outside-only labels
+ * (neighbour / country / sea names). Baked by scripts/extract-context.ts.
+ */
+export type ContextKind = "province" | "country";
+export interface ContextShape {
+  type: "Feature";
+  properties: { kind: ContextKind; name: string };
+  geometry: Polygon | MultiPolygon;
+}
+export interface ContextLabel {
+  /** Label text, e.g. "Torino", "Francia", "Mar Ligure". */
+  name: string;
+  kind: "province" | "country" | "sea";
+  /** WGS84 anchor `[lon, lat]`, guaranteed outside the target province. */
+  at: [number, number];
+}
+export interface ContextCollection {
+  type: "FeatureCollection";
+  features: ContextShape[];
+  labels: ContextLabel[];
 }

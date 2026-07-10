@@ -17,8 +17,10 @@ export interface ProjectedMap {
   features: ProjectedFeature[];
   /**
    * The Web-Mercator projection used to lay out the map inside the viewBox.
-   * Exposed so an optional raster terrain layer can align standard map tiles
-   * to the exact same pixel space (see game/tiles.ts).
+   * Exposed so the optional terrain layers align to the exact same pixel
+   * space: the hillshade image is placed by projecting its WGS84 corners, and
+   * the vector water/context are drawn with `geoPath(projection)` (see
+   * components/MapCanvas.tsx).
    */
   projection: GeoProjection;
 }

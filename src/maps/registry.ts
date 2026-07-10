@@ -2,9 +2,12 @@ import { geoCentroid } from "d3-geo";
 import provinces from "./provinces.json";
 import type {
   ComuniCollection,
+  ContextCollection,
   MapDefinition,
   MapFeature,
   ProvinceMeta,
+  ReliefMeta,
+  WaterCollection,
 } from "./types";
 
 /**
@@ -57,4 +60,54 @@ export async function loadMap(id: string): Promise<MapDefinition> {
     unit: { singular: "comune", plural: "comuni" },
     features: collection.features.map(toMapFeature),
   };
+}
+
+/* ── Optional terrain layers ────────────────────────────────────────────────
+   Baked per province by scripts/extract-{relief,water,context}.ts and loaded
+   lazily only when the terrain toggle is on. Each is code-split, and a province
+   with no baked data simply resolves to null (the layer renders nothing). */
+
+const reliefImages = import.meta.glob<string>("./relief/*.png", {
+  query: "?url",
+  import: "default",
+});
+const reliefBounds = import.meta.glob<{ default: ReliefMeta }>(
+  "./relief/*.json",
+);
+const waterLoaders = import.meta.glob<{ default: WaterCollection }>(
+  "./water/*.json",
+);
+const contextLoaders = import.meta.glob<{ default: ContextCollection }>(
+  "./context/*.json",
+);
+
+/** A province's baked hillshade: its image URL plus WGS84 placement bounds. */
+export interface Relief extends ReliefMeta {
+  url: string;
+}
+
+/** Load the baked relief raster for a province, or null if none is baked. */
+export async function loadRelief(id: string): Promise<Relief | null> {
+  const image = reliefImages[`./relief/${id}.png`];
+  const bounds = reliefBounds[`./relief/${id}.json`];
+  if (!image || !bounds) return null;
+  // image() resolves to the asset URL string (via the `?url` glob query).
+  const [url, meta] = await Promise.all([image(), bounds()]);
+  return { url, ...meta.default };
+}
+
+/** Load the baked waterways for a province, or null if none is baked. */
+export async function loadWater(id: string): Promise<WaterCollection | null> {
+  const loader = waterLoaders[`./water/${id}.json`];
+  if (!loader) return null;
+  return (await loader()).default;
+}
+
+/** Load the baked context (neighbours/countries/labels), or null if none. */
+export async function loadContext(
+  id: string,
+): Promise<ContextCollection | null> {
+  const loader = contextLoaders[`./context/${id}.json`];
+  if (!loader) return null;
+  return (await loader()).default;
 }

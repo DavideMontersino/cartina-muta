@@ -15,3 +15,7 @@ tsconfig.tsbuildinfo
 # Raw source dataset — large; the extracted per-map JSON is committed instead.
 italy-municipalities.geojson
 istat-popolazione.csv
+
+# Cached raw downloads for the terrain pipelines (DEM tiles, Overpass responses,
+# Natural Earth). Gitignored so re-bakes are cheap without bloating the repo.
+.cache
