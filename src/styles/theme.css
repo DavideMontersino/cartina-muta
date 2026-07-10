@@ -929,6 +929,21 @@ button {
 .energy-toast--hit {
   color: var(--olive-deep);
 }
+/* A hit on a seeded comune carries a photo + fact; give it room and let it
+   linger long enough to read (JS timer is matched to this longer fade). */
+.energy-toast--rich {
+  animation-duration: 3.8s;
+  max-width: min(22rem, 82vw);
+}
+.energy-toast--rich .reaction-toast__campanile {
+  display: block;
+  margin: 0.5rem auto 0;
+  max-height: 20vh;
+}
+.energy-toast--rich .reaction-toast__fact {
+  display: block;
+  margin-top: 0.4rem;
+}
 .energy-toast--miss {
   color: var(--terracotta);
 }

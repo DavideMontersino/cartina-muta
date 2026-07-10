@@ -69,6 +69,10 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
     kind: "hit" | "miss";
     /** Local-language reaction shown on a miss (in place of distance/bearing). */
     reaction: string;
+    /** A trivia fact for the just-hit comune (hit only, when it has one). */
+    fact?: string | null;
+    /** Campanile photo URL for the just-hit comune (hit only, when it has one). */
+    campanile?: string;
   } | null>(null);
   const flashTimer = useRef<number | undefined>(undefined);
   const wrongTimer = useRef<number | undefined>(undefined);
@@ -254,6 +258,11 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   useEffect(() => {
     if (!isEnergy || !state.feedback) return;
     const correct = state.feedback.correct;
+    const istat = roundTargetIstatRef.current ?? undefined;
+    // On a hit the comune is revealed, so its fact/photo can ride along (only
+    // for seeded comuni; otherwise these stay null/undefined and don't render).
+    const fact = correct ? pickFact(istat) : undefined;
+    const campanile = correct ? (pickCampanile(istat) ?? undefined) : undefined;
     setEnergyToast({
       id: state.feedback.id,
       kind: correct ? "hit" : "miss",
@@ -265,13 +274,16 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
             state.correctStreak,
             state.wrongStreak,
             Math.random,
-            roundTargetIstatRef.current ?? undefined,
+            istat,
           ),
+      fact,
+      campanile,
     });
     window.clearTimeout(energyToastTimer.current);
+    // Linger longer when there's a fact/photo to actually read.
     energyToastTimer.current = window.setTimeout(
       () => setEnergyToast(null),
-      2200,
+      fact || campanile ? 3800 : 2200,
     );
   }, [
     isEnergy,
@@ -387,7 +399,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
           {energyToast && (
             <div
               key={energyToast.id}
-              className={`energy-toast ${energyToast.kind === "hit" ? "energy-toast--hit" : "energy-toast--miss"}`}
+              className={`energy-toast ${energyToast.kind === "hit" ? "energy-toast--hit" : "energy-toast--miss"}${energyToast.campanile || energyToast.fact ? " energy-toast--rich" : ""}`}
             >
               {energyToast.kind === "hit" && state.scoreBreakdown ? (
                 <>
@@ -410,6 +422,18 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
                       ]
                         .filter(Boolean)
                         .join(" · ")}
+                    </span>
+                  )}
+                  {energyToast.campanile && (
+                    <img
+                      className="reaction-toast__campanile"
+                      src={energyToast.campanile}
+                      alt="Campanile"
+                    />
+                  )}
+                  {energyToast.fact && (
+                    <span className="reaction-toast__fact">
+                      {energyToast.fact}
                     </span>
                   )}
                 </>
