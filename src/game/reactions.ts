@@ -1,4 +1,9 @@
-import { getFacts, getFailPool, getPhrasePool } from "../phrases/registry";
+import {
+  getCampanile,
+  getFacts,
+  getFailPool,
+  getPhrasePool,
+} from "../phrases/registry";
 import type { ReactionEvent } from "../phrases/types";
 
 const STREAK_MILESTONES = [10, 5, 3] as const;
@@ -56,4 +61,13 @@ export function pickFact(
 ): string | null {
   const facts = getFacts(istat);
   return facts.length > 0 ? pick(facts, rng) : null;
+}
+
+/** Picks one campanile/landmark photo for a comune, or null when it has none. */
+export function pickCampanile(
+  istat?: string,
+  rng: () => number = Math.random,
+): string | null {
+  const photos = getCampanile(istat);
+  return photos.length > 0 ? pick(photos, rng) : null;
 }

@@ -1,3 +1,6 @@
+import { cnTier1a } from "./data/municipalities/cn-t1a";
+import { cnTier1b } from "./data/municipalities/cn-t1b";
+import { cnTier1c } from "./data/municipalities/cn-t1c";
 import type { MunicipalityFlavor } from "./types";
 
 /**
@@ -6,11 +9,14 @@ import type { MunicipalityFlavor } from "./types";
  * back to the province → region → generic phrase pools when absent, and
  * `facts`/`campanile` simply don't render when a comune has none.
  *
+ * Bulk province content lives in the per-tier modules under
+ * `./data/municipalities/` (one file per subagent batch, spread in below);
+ * this file holds the small hand-kept base (e.g. Torino) and merges the rest.
  * To add a comune, look up its ISTAT code in the province's map data
- * (`src/maps/data/<id>.json`) and drop an entry here. Campanile photos, when
- * added, must be credited in CREDIT.md (source + licence).
+ * (`src/maps/data/<id>.json`). Campanile photos, when added, must be credited
+ * in CREDIT.md (source + licence).
  */
-export const municipalityFlavor: Record<string, MunicipalityFlavor> = {
+const baseFlavor: Record<string, MunicipalityFlavor> = {
   // Torino — the regional capital; missing it is a special kind of shame.
   "001272": {
     win: [
@@ -41,4 +47,16 @@ export const municipalityFlavor: Record<string, MunicipalityFlavor> = {
       "Patria del bollito misto piemontese.",
     ],
   },
+};
+
+/**
+ * The merged override map: the hand-kept base plus every province content tier.
+ * Later spreads win key collisions, but tiers are keyed by disjoint ISTAT codes
+ * so order only matters for the base (kept first, so a tier can supersede it).
+ */
+export const municipalityFlavor: Record<string, MunicipalityFlavor> = {
+  ...baseFlavor,
+  ...cnTier1a,
+  ...cnTier1b,
+  ...cnTier1c,
 };

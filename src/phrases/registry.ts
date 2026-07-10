@@ -77,7 +77,7 @@ export function getFacts(istat?: string): string[] {
   return (istat && municipalityFlavor[istat]?.facts) || [];
 }
 
-/** Campanile photo URL for a comune, or undefined when unpopulated. */
-export function getCampanile(istat?: string): string | undefined {
-  return istat ? municipalityFlavor[istat]?.campanile : undefined;
+/** Campanile/landmark photo URLs for a comune (empty when it has none). */
+export function getCampanile(istat?: string): string[] {
+  return (istat && municipalityFlavor[istat]?.campanile) || [];
 }

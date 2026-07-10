@@ -14,12 +14,16 @@ import {
   type GameConfig,
   reducer,
 } from "../game/engine";
-import { pickFact, pickFailReaction, pickReaction } from "../game/reactions";
+import {
+  pickCampanile,
+  pickFact,
+  pickFailReaction,
+  pickReaction,
+} from "../game/reactions";
 import type {
   ActionLogEntry,
   ScoreSubmissionPayload,
 } from "../leaderboard/types";
-import { getCampanile } from "../phrases/registry";
 import { ConfirmExitDialog } from "./ConfirmExitDialog";
 import { HamburgerMenu } from "./HamburgerMenu";
 import { MapCanvas, type MapCanvasRef } from "./MapCanvas";
@@ -233,7 +237,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
       text,
       tone: correct ? "win" : "miss",
       fact: correct ? pickFact(istat) : undefined,
-      campanile: correct ? getCampanile(istat) : undefined,
+      campanile: correct ? (pickCampanile(istat) ?? undefined) : undefined,
     });
     window.clearTimeout(reactionTimer.current);
     reactionTimer.current = window.setTimeout(() => setReaction(null), 2600);
@@ -305,7 +309,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
         text: pickFailReaction(istat),
         tone: "fail",
         fact: pickFact(istat),
-        campanile: getCampanile(istat),
+        campanile: pickCampanile(istat) ?? undefined,
       });
       reactionTimer.current = window.setTimeout(() => setReaction(null), 2600);
     }

@@ -10,6 +10,7 @@ import {
   getPhrasePool,
 } from "../phrases/registry";
 import {
+  pickCampanile,
   pickFact,
   pickFailReaction,
   pickReaction,
@@ -18,6 +19,10 @@ import {
 
 const TORINO = "001272";
 const CARRU = "004043";
+// A sample of Cuneo comuni seeded by the #27 content pass (ISTAT-keyed).
+const CUNEO = "004078";
+const ALBA = "004003";
+const DRONERO = "004082";
 
 describe("selectReactionEvent", () => {
   it("returns plain correct/wrong outside of milestone streaks", () => {
@@ -158,14 +163,51 @@ describe("fail / facts / campanile", () => {
     expect(pickFact(TORINO, () => 0)).toBe(getFacts(TORINO)[0]);
   });
 
-  it("getCampanile is undefined until a comune populates one", () => {
-    expect(getCampanile("999999")).toBeUndefined();
+  it("getCampanile is an empty array until a comune populates one", () => {
+    expect(getCampanile("999999")).toEqual([]);
+    expect(getCampanile(undefined)).toEqual([]);
+  });
+
+  it("pickCampanile returns null with no photos, else a member of the pool", () => {
+    expect(pickCampanile("999999")).toBeNull();
+    const photos = getCampanile(CUNEO);
+    expect(photos.length).toBeGreaterThan(0);
+    expect(pickCampanile(CUNEO, () => 0)).toBe(photos[0]);
   });
 
   it("pickFailReaction is deterministic given a fixed rng", () => {
     expect(pickFailReaction(TORINO, () => 0)).toBe(
       municipalityFlavor[TORINO].fail?.[0],
     );
+  });
+});
+
+describe("#27 Cuneo content — sample ISTAT keys resolve to municipality pools", () => {
+  const seeded = [CUNEO, ALBA, DRONERO, CARRU];
+
+  it("exposes bespoke win/miss lines (not the province fallback) for seeded comuni", () => {
+    for (const istat of [CUNEO, ALBA, DRONERO]) {
+      const flavor = municipalityFlavor[istat];
+      expect(flavor).toBeDefined();
+      expect(getPhrasePool("cn", "correct", istat)).toBe(flavor.win);
+      expect(getPhrasePool("cn", "wrong", istat)).toBe(flavor.miss);
+    }
+  });
+
+  it("gives every seeded comune a fail pool and at least one fact", () => {
+    for (const istat of seeded) {
+      expect(getFailPool(istat).length).toBeGreaterThan(0);
+      expect(getFacts(istat).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("resolves campanile photos as /campanili/ asset paths for seeded comuni", () => {
+    for (const istat of [CUNEO, ALBA, DRONERO]) {
+      const photos = getCampanile(istat);
+      expect(photos.length).toBeGreaterThan(0);
+      for (const url of photos)
+        expect(url).toMatch(/^\/campanili\/.+\.(jpg|png|webp)$/);
+    }
   });
 });
 

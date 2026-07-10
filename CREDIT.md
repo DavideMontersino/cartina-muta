@@ -68,14 +68,43 @@ Natural Earth") is shown whenever the layer is active.
 
 ## Campanile photos (municipality flavour popups)
 
-- **Source:** none committed yet. The per-comune override layer
-  (`src/phrases/municipalities.ts`) has an optional `campanile` field that, when
-  populated, shows a photo of the comune's bell tower on the win/give-up popup.
-- **Requirement:** any photo added here **must** be credited in this section
-  (source, author, licence). Prefer public-domain or CC-licensed images (e.g.
-  Wikimedia Commons) and import them as local assets rather than hot-linking, so
-  attribution and availability stay under our control.
+- **Source:** [Wikimedia Commons](https://commons.wikimedia.org/), downloaded as
+  local assets under `public/campanili/<istat>.jpg` (no hot-linking). The
+  per-comune override layer (`src/phrases/municipalities.ts`) has an optional
+  `campanile` field (an array of asset paths) that, when populated, shows a
+  photo of the comune's bell tower / signature landmark on the win/give-up popup
+  (one is picked at random per reveal).
+- **Requirement:** any photo added here **must** be credited below (source,
+  author, licence). Only public-domain / CC0 / CC-BY / CC-BY-SA images are used.
 - **Used for:** the `.reaction-toast__campanile` image in `GameScreen.tsx`.
+
+### Provincia di Cuneo — Tier 1 (top 25 comuni)
+
+- **Cuneo campanile** (`/campanili/004078.jpg`) — [File:Cuneo Torre.jpeg](https://commons.wikimedia.org/wiki/File:Cuneo_Torre.jpeg) by Hansm, CC BY-SA 3.0.
+- **Alba campanile** (`/campanili/004003.jpg`) — [File:Alba-duomo-campanile.jpg](https://commons.wikimedia.org/wiki/File:Alba-duomo-campanile.jpg) by Davide Papalini, CC BY-SA 3.0.
+- **Bra campanile** (`/campanili/004029.jpg`) — [File:Bra Chiesa di Santa Chiara Esterno Campanile.jpg](https://commons.wikimedia.org/wiki/File:Bra_Chiesa_di_Santa_Chiara_Esterno_Campanile.jpg) by Zairon, CC BY-SA 4.0.
+- **Fossano campanile** (`/campanili/004089.jpg`) — [File:Fossano Cattedrale di Santa Maria e San Giovenale Esterno Campanile.jpg](https://commons.wikimedia.org/wiki/File:Fossano_Cattedrale_di_Santa_Maria_e_San_Giovenale_Esterno_Campanile.jpg) by Zairon, CC BY-SA 4.0.
+- **Mondovì campanile** (`/campanili/004130.jpg`) — [File:Mondovì-TorreCivica.jpg](https://commons.wikimedia.org/wiki/File:Mondov%C3%AC-TorreCivica.jpg) by Marco Plassio, CC BY-SA 3.0.
+- **Savigliano campanile** (`/campanili/004215.jpg`) — [File:Savigliano-torre civica.jpg](https://commons.wikimedia.org/wiki/File:Savigliano-torre_civica.jpg) by Davide Papalini, CC BY-SA 3.0.
+- **Saluzzo campanile** (`/campanili/004203.jpg`) — [File:Saluzzo Torre Civica Esterno 1.jpg](https://commons.wikimedia.org/wiki/File:Saluzzo_Torre_Civica_Esterno_1.jpg) by Zairon, CC BY-SA 4.0.
+- **Borgo San Dalmazzo campanile** (`/campanili/004025.jpg`) — [File:Borgosandalmazzo chiesa san dalmazzo.jpg](https://commons.wikimedia.org/wiki/File:Borgosandalmazzo_chiesa_san_dalmazzo.jpg) by Luigi.tuby, CC BY-SA 3.0.
+- **Busca campanile** (`/campanili/004034.jpg`) — [File:Busca via bofferio.jpg](https://commons.wikimedia.org/wiki/File:Busca_via_bofferio.jpg) by Luigi.tuby, CC BY-SA 3.0.
+- **Racconigi – Castello Reale** (`/campanili/004179.jpg`) — [File:Racconigi Castello Reale di Racconigi Esterno 1.jpg](https://commons.wikimedia.org/wiki/File:Racconigi_Castello_Reale_di_Racconigi_Esterno_1.jpg) by Zairon, CC BY-SA 4.0.
+- **Boves – Chiesa di San Bartolomeo Apostolo** (`/campanili/004028.jpg`) — [File:Chiesa di San Bartolomeo Apostolo, Boves, vista frontale.jpg](https://commons.wikimedia.org/wiki/File:Chiesa_di_San_Bartolomeo_Apostolo,_Boves,_vista_frontale.jpg) by Francians, CC BY-SA 4.0.
+- **Cherasco – campanile di San Gregorio** (`/campanili/004067.jpg`) — [File:Cherasco-chiesa san gregorio-campanile.jpg](https://commons.wikimedia.org/wiki/File:Cherasco-chiesa_san_gregorio-campanile.jpg) by Davide Papalini, CC BY-SA 3.0.
+- **Barge – San Giovanni Battista** (`/campanili/004012.jpg`) — [File:San Giovanni Battista, chiesa parrocchiale di Barge, Italia.jpg](https://commons.wikimedia.org/wiki/File:San_Giovanni_Battista,_chiesa_parrocchiale_di_Barge,_Italia.jpg) by F Ceragioli, CC BY-SA 3.0.
+- **Dronero – Ponte del Diavolo** (`/campanili/004082.jpg`) — [File:Dronero-Ponte del Diavolo-20180808 110932.jpg](https://commons.wikimedia.org/wiki/File:Dronero-Ponte_del_Diavolo-20180808_110932.jpg) by Ale zena, CC BY-SA 4.0.
+- **Centallo – San Giovanni Battista** (`/campanili/004061.jpg`) — [File:Centallo chiesa san giovanni battista.jpg](https://commons.wikimedia.org/wiki/File:Centallo_chiesa_san_giovanni_battista.jpg) by Luigi.tuby, CC BY-SA 3.0.
+- **Caraglio – Filatoio Rosso** (`/campanili/004040.jpg`) — [File:FilatoioCaraglio01.jpg](https://commons.wikimedia.org/wiki/File:FilatoioCaraglio01.jpg) by Enryonthecloud, Public domain.
+- **Verzuolo – Santi Filippo e Giacomo** (`/campanili/004240.jpg`) — [File:Verzuolo-IMG 1184.JPG](https://commons.wikimedia.org/wiki/File:Verzuolo-IMG_1184.JPG) by Davide Papalini, CC BY 2.5.
+- **Sommariva del Bosco – Porta del Roero** (`/campanili/004222.jpg`) — [File:Panorama di Sommariva del Bosco, Porta del Roero.jpg](https://commons.wikimedia.org/wiki/File:Panorama_di_Sommariva_del_Bosco,_Porta_del_Roero.jpg) by Tucidide85, Public Domain.
+- **Bagnolo Piemonte – piazza San Pietro** (`/campanili/004009.jpg`) — [File:Bagnolo Piemonte (CN) - piazza San Pietro.jpg](https://commons.wikimedia.org/wiki/File:Bagnolo_Piemonte_(CN)_-_piazza_San_Pietro.jpg) by Lucifer2602, CC BY-SA 4.0.
+- **Villanova Mondovì – Santuario di Santa Lucia** (`/campanili/004245.jpg`) — [File:Santuario di Santa Lucia presso Villanova Mondovì.jpg](https://commons.wikimedia.org/wiki/File:Santuario_di_Santa_Lucia_presso_Villanova_Mondov%C3%AC.jpg) by Valerio Manassero, CC BY-SA 3.0.
+- **Ceva – Duomo con campanile** (`/campanili/004066.jpg`) — [File:Ceva-Duomo con campanile.jpg](https://commons.wikimedia.org/wiki/File:Ceva-Duomo_con_campanile.jpg) by Marco Plassio, CC BY-SA 3.0.
+- **Canale – panorama** (`/campanili/004037.jpg`) — [File:Canale, panorama - panoramio.jpg](https://commons.wikimedia.org/wiki/File:Canale,_panorama_-_panoramio.jpg) by Virginia Scarsi, CC BY-SA 3.0.
+- **Peveragno – Ricetto** (`/campanili/004163.jpg`) — [File:Ricetto di Peveragno.jpg](https://commons.wikimedia.org/wiki/File:Ricetto_di_Peveragno.jpg) by Fabio Carassio, CC0.
+- **Cavallermaggiore – Santa Maria della Pieve** (`/campanili/004059.jpg`) — [File:Cavallermaggiore-chiesa santa maria della pieve-campanile.jpg](https://commons.wikimedia.org/wiki/File:Cavallermaggiore-chiesa_santa_maria_della_pieve-campanile.jpg) by Davide Papalini, CC BY-SA 3.0.
+- **Cervasca – San Michele** (`/campanili/004064.jpg`) — [File:Cervasca sanmicheledicervasca pianuracuneese.jpg](https://commons.wikimedia.org/wiki/File:Cervasca_sanmicheledicervasca_pianuracuneese.jpg) by Luigi.tuby, CC BY-SA 3.0.
 
 ## Libraries
 

@@ -30,8 +30,9 @@ export interface MunicipalityFlavor {
   /** Trivia shown on the reveal/win popup — one is picked at random. */
   facts?: string[];
   /**
-   * Campanile photo for this comune (an imported asset URL). Shown on the
-   * win/fail popup only when populated; absent → no photo.
+   * Campanile / landmark photos for this comune (asset URLs under
+   * `/campanili/`). Shown on the win/fail popup only when populated; one is
+   * picked at random per reveal (like `facts`). Absent/empty → no photo.
    */
-  campanile?: string;
+  campanile?: string[];
 }
