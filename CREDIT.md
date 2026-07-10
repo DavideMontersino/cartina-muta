@@ -126,6 +126,14 @@ Natural Earth") is shown whenever the layer is active.
 - **Frabosa Sottana** (`/campanili/004091.jpg`) — [File:Frabosa Sottana - Comune di Frabosa Sottana - 2023-09-01 10-44-54 001.jpg](https://commons.wikimedia.org/wiki/File:Frabosa_Sottana_-_Comune_di_Frabosa_Sottana_-_2023-09-01_10-44-54_001.jpg) by Bubici, CC BY-SA 4.0.
 - **Monteu Roero** (`/campanili/004140.jpg`) — [File:Monteu Roero 01.jpg](https://commons.wikimedia.org/wiki/File:Monteu_Roero_01.jpg) by mattis (User:Mattana), CC BY-SA 4.0.
 - **Roddi – veduta** (`/campanili/004194.jpg`) — [File:Roddi veduta.JPG](https://commons.wikimedia.org/wiki/File:Roddi_veduta.JPG) by Georgius LXXXIX, CC BY-SA 3.0.
+- **Monticello d'Alba** (`/campanili/004142.jpg`) — [File:Monticello d'Alba 03.jpg](https://commons.wikimedia.org/wiki/File:Monticello_d%27Alba_03.jpg) by Tommicris, CC BY-SA 4.0.
+- **Corneliano d'Alba – torre decagonale** (`/campanili/004072.jpg`) — [File:Corneliano d'Alba (Piemonte, Italia), arco medievale e torre decagonale - panoramio.jpg](https://commons.wikimedia.org/wiki/File:Corneliano_d%27Alba_(Piemonte,_Italia),_arco_medievale_e_torre_decagonale_-_panoramio.jpg) by Virginia Scarsi, CC BY-SA 3.0.
+- **Cortemilia – Chiesa della Beata Vergine Immacolata** (`/campanili/004073.jpg`) — [File:Cortemilia - Chiesa della Beata Vergine Immacolata - 2024-02-21 21-55-06 001.jpg](https://commons.wikimedia.org/wiki/File:Cortemilia_-_Chiesa_della_Beata_Vergine_Immacolata_-_2024-02-21_21-55-06_001.jpg) by Gallo mauro 56, CC BY-SA 4.0.
+- **Cervere – Piazza Umberto / Confraternita Santa Croce** (`/campanili/004065.jpg`) — [File:Cervere-Piazza-Umberto-Confraternita-Santa-Croce.jpg](https://commons.wikimedia.org/wiki/File:Cervere-Piazza-Umberto-Confraternita-Santa-Croce.jpg) by Giacomodotta, CC BY-SA 4.0.
+- **Robilante – Chiesa di San Donato** (`/campanili/004185.jpg`) — [File:Robilante, Piazza Regina Margherita con la Chiesa di San Donato.jpg](https://commons.wikimedia.org/wiki/File:Robilante,_Piazza_Regina_Margherita_con_la_Chiesa_di_San_Donato.jpg) by NicoloRizzetto, CC BY-SA 4.0.
+- **Sanfront – Borgata Museo Balma Boves** (`/campanili/004209.jpg`) — [File:Sanfront - Borgata Museo Balma Boves - 2024-09-21 14-44-51 001.jpg](https://commons.wikimedia.org/wiki/File:Sanfront_-_Borgata_Museo_Balma_Boves_-_2024-09-21_14-44-51_001.jpg) by FabriFox84, CC BY-SA 4.0.
+- **Magliano Alfieri – castello** (`/campanili/004113.jpg`) — [File:Magliano Alfieri castello 30-11-2021.jpg](https://commons.wikimedia.org/wiki/File:Magliano_Alfieri_castello_30-11-2021.jpg) by Jeanne Griffin, CC BY-SA 4.0.
+- **Govone – castello e colline** (`/campanili/004099.jpg`) — [File:Castello di govone (Roero, Piemonte) e colline in primavera.jpg](https://commons.wikimedia.org/wiki/File:Castello_di_govone_(Roero,_Piemonte)_e_colline_in_primavera.jpg) by Virginiascarsi, CC BY-SA 3.0.
 
 ## Libraries
 
