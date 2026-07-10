@@ -25,7 +25,6 @@ import type {
   ScoreSubmissionPayload,
 } from "../leaderboard/types";
 import { ConfirmExitDialog } from "./ConfirmExitDialog";
-import { HamburgerMenu } from "./HamburgerMenu";
 import { MapCanvas, type MapCanvasRef } from "./MapCanvas";
 import { ResultCard } from "./ResultCard";
 import { TerrainToggle } from "./TerrainToggle";
@@ -43,6 +42,10 @@ function formatClock(totalSeconds: number): string {
   const r = s % 60;
   return `${m}:${r.toString().padStart(2, "0")}`;
 }
+
+// Energy mode's trivia/campanile popup: long enough to actually read a fact
+// and look at a photo. The energy drain is paused for its whole duration.
+const ENERGY_FACT_POPUP_MS = 3200;
 
 export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   const isEnergy = config.mode.kind === "energy";
@@ -72,6 +75,15 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
     /** A trivia fact for the just-hit comune (hit only, when it has one). */
     fact?: string | null;
     /** Campanile photo URL for the just-hit comune (hit only, when it has one). */
+    campanile?: string;
+  } | null>(null);
+  // Energy mode's fact + campanile photo popup for the give-up/fail reveal
+  // (skip or the 3rd-miss auto-reveal) — the win case's own fact/photo rides
+  // along in the energyToast "rich" variant above instead.
+  const [energyFact, setEnergyFact] = useState<{
+    id: number;
+    tone: "fail";
+    fact?: string | null;
     campanile?: string;
   } | null>(null);
   const flashTimer = useRef<number | undefined>(undefined);
@@ -206,8 +218,17 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
       await new Promise((r) => setTimeout(r, 1200));
       if (!active) return;
       setRevealIndex(null);
-      setIsRevealing(false);
       setIsAnimatingMap(false);
+      const istat = config.map.features[missedTarget].istat;
+      const fact = pickFact(istat);
+      const campanile = pickCampanile(istat) ?? undefined;
+      if (fact || campanile) {
+        setEnergyFact({ id: performance.now(), tone: "fail", fact, campanile });
+        await new Promise((r) => setTimeout(r, ENERGY_FACT_POPUP_MS));
+        if (!active) return;
+        setEnergyFact(null);
+      }
+      setIsRevealing(false);
     };
     runAnimation();
 
@@ -215,8 +236,9 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
       active = false;
       setIsRevealing(false);
       setIsAnimatingMap(false);
+      setEnergyFact(null);
     };
-  }, [isEnergy, state.feedback, state.status]);
+  }, [isEnergy, state.feedback, state.status, config.map.features]);
 
   // On every guess: surface a funny local reaction (curse/praise), with
   // dialect flavour when the province has one and streak-aware milestones.
@@ -254,7 +276,9 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   ]);
 
   // Energy mode: itemized score toast on a hit, a local-language reaction on a
-  // miss (same dialect phrase pool the classic modes use).
+  // miss (same dialect phrase pool the classic modes use). A hit on a seeded
+  // comune also carries its fact/photo — same "freeze the clock during an
+  // overlay" rule the fail/skip reveal above follows, so there's time to read it.
   useEffect(() => {
     if (!isEnergy || !state.feedback) return;
     const correct = state.feedback.correct;
@@ -280,10 +304,15 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
       campanile,
     });
     window.clearTimeout(energyToastTimer.current);
+    const rich = Boolean(fact || campanile);
+    if (rich) setIsRevealing(true);
     // Linger longer when there's a fact/photo to actually read.
     energyToastTimer.current = window.setTimeout(
-      () => setEnergyToast(null),
-      fact || campanile ? 3800 : 2200,
+      () => {
+        setEnergyToast(null);
+        if (rich) setIsRevealing(false);
+      },
+      rich ? 3800 : 2200,
     );
   }, [
     isEnergy,
@@ -339,8 +368,24 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
       setRevealIndex(target);
       await new Promise((r) => setTimeout(r, 1200));
       setRevealIndex(null);
-      setIsRevealing(false);
       setIsAnimatingMap(false);
+      // Energy mode's own fact/campanile popup (classic already showed its
+      // fail toast above) — holds the clock paused a bit longer to read it.
+      if (isEnergy) {
+        const fact = pickFact(istat);
+        const campanile = pickCampanile(istat) ?? undefined;
+        if (fact || campanile) {
+          setEnergyFact({
+            id: performance.now(),
+            tone: "fail",
+            fact,
+            campanile,
+          });
+          await new Promise((r) => setTimeout(r, ENERGY_FACT_POPUP_MS));
+          setEnergyFact(null);
+        }
+      }
+      setIsRevealing(false);
       dispatch({ type: "skip" });
     };
 
@@ -394,6 +439,23 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
           {wrongIndex !== null && (
             <div key={wrongKey} className="wrong-name-toast">
               {config.map.features[wrongIndex].name}
+            </div>
+          )}
+          {energyFact && (
+            <div
+              key={energyFact.id}
+              className={`reaction-toast reaction-toast--${energyFact.tone} energy-fact-toast`}
+            >
+              {energyFact.campanile && (
+                <img
+                  className="reaction-toast__campanile"
+                  src={energyFact.campanile}
+                  alt="Campanile"
+                />
+              )}
+              {energyFact.fact && (
+                <span className="reaction-toast__fact">{energyFact.fact}</span>
+              )}
             </div>
           )}
           {energyToast && (
@@ -463,10 +525,6 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
           >
             ← Menu
           </button>
-          <HamburgerMenu
-            provinceId={config.map.id}
-            provinceName={config.map.name}
-          />
           <div
             className={`energy-bar ${state.energy <= 25 ? "energy-bar--low" : ""}`}
             aria-hidden
@@ -531,10 +589,6 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
           >
             ← Menu
           </button>
-          <HamburgerMenu
-            provinceId={config.map.id}
-            provinceName={config.map.name}
-          />
         </div>
         <div className="hud__stats">
           <div className="stat">

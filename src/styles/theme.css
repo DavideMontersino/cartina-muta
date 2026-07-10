@@ -976,6 +976,30 @@ button {
   color: var(--ink-soft);
   letter-spacing: 0.02em;
 }
+/* Energy mode's trivia fact + campanile photo popup: centered over the map
+   (not anchored top/bottom like the toasts above, which it can coexist with),
+   shown for longer since it may carry a photo to actually look at. */
+.energy-fact-toast {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  animation: energy-fact-fade 3.2s ease forwards;
+}
+@keyframes energy-fact-fade {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
 
 /* ---------- Result overlay ---------- */
 .overlay {

@@ -38,7 +38,7 @@ export function ResultCard({
   const title = isEnergy
     ? perfect
       ? "Provincia conquistata!"
-      : "Energia esaurita"
+      : "Game over"
     : perfect
       ? "Perfetto!"
       : timedOut
