@@ -38,6 +38,14 @@ function formatClock(elapsedMs: number): string {
   return `${m}:${r.toString().padStart(2, "0")}`;
 }
 
+function formatDate(timestampMs: number): string {
+  return new Date(timestampMs).toLocaleDateString("it-IT", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export function LeaderboardPanel({
   provinceId,
   provinceName,
@@ -110,9 +118,11 @@ export function LeaderboardPanel({
         <p className="leaderboard__error">{state.message}</p>
       )}
       {state.status === "loaded" && state.entries.length === 0 && (
-        <p className="leaderboard__empty">
-          Nessun punteggio ancora. Sii il primo!
-        </p>
+        <div className="leaderboard__empty">
+          <p className="leaderboard__empty-icon">🏆</p>
+          <p>Nessun punteggio ancora.</p>
+          <p className="leaderboard__empty-cta">Sii il primo!</p>
+        </div>
       )}
       {state.status === "loaded" && state.entries.length > 0 && (
         <ol className="leaderboard__list">
@@ -125,10 +135,34 @@ export function LeaderboardPanel({
             const isMe =
               state.meUserId !== null && entry.userId === state.meUserId;
 
+            const medal =
+              entry.rank === 1
+                ? "is-gold"
+                : entry.rank === 2
+                  ? "is-silver"
+                  : entry.rank === 3
+                    ? "is-bronze"
+                    : "";
+
+            const mistakesLabel =
+              entry.mistakes === 0 ? null : `${entry.mistakes} err`;
+
             const cells = (
               <>
-                <span className="leaderboard__rank">{entry.rank}</span>
-                <span className="leaderboard__name">{entry.name}</span>
+                <span className={`leaderboard__rank ${medal}`}>
+                  {entry.rank}
+                </span>
+                <span className="leaderboard__name">
+                  {entry.name}
+                  <span className="leaderboard__sub">
+                    {mistakesLabel && (
+                      <span className="leaderboard__sub-mistakes">
+                        {mistakesLabel}
+                      </span>
+                    )}
+                    {formatDate(entry.createdAt)}
+                  </span>
+                </span>
                 {isEnergy ? (
                   <span className="leaderboard__found">
                     {entry.score ?? 0} pt
