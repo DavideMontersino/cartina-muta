@@ -1,4 +1,5 @@
 import { type ReactElement, useEffect, useState } from "react";
+import { Route, Switch, useLocation } from "wouter";
 import { GameScreen } from "./components/GameScreen";
 import { HomeScreen } from "./components/HomeScreen";
 import { LoadingScreen } from "./components/LoadingScreen";
@@ -8,6 +9,9 @@ import type { Difficulty, GameConfig, GameMode } from "./game/engine";
 import { useClaimPendingScores } from "./leaderboard/useClaimPendingScores";
 import { getProvince, loadMap } from "./maps/registry";
 import { normalizeCode } from "./multiplayer/code";
+import { ChangelogPage } from "./pages/ChangelogPage";
+import { CreditsPage } from "./pages/CreditsPage";
+import { LeaderboardPage } from "./pages/LeaderboardPage";
 
 interface Selection {
   provinceId: string;
@@ -15,31 +19,18 @@ interface Selection {
   difficulty: Difficulty;
 }
 
-/** A `/room/CODE` deep link opens straight into the multiplayer join flow. */
-function initialDeepLinkCode(): string | null {
-  const match = /^\/room\/([A-Za-z0-9]+)/.exec(window.location.pathname);
-  return match ? normalizeCode(match[1]) : null;
+function MultiplayerRoute({ code }: { code: string | null }) {
+  const [, navigate] = useLocation();
+  return <MultiplayerApp initialCode={code} onExit={() => navigate("/")} />;
 }
 
-export function App() {
-  const [multiplayer, setMultiplayer] = useState(
-    () => initialDeepLinkCode() !== null,
-  );
-  const [roomCode, setRoomCode] = useState<string | null>(initialDeepLinkCode);
+function GameFlow() {
+  const [, navigate] = useLocation();
   const [selection, setSelection] = useState<Selection | null>(null);
   const [config, setConfig] = useState<GameConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Bumped to remount GameScreen for a fresh run of the same province+mode.
   const [runKey, setRunKey] = useState(0);
 
-  // Dev-only: warn loudly if any screen spills off the (non-scrolling) viewport.
-  useNoScrollGuard();
-
-  // Claim a score parked before a magic-link sign-in (see the hook) once the
-  // player lands back signed in — and confirm it with a brief banner.
-  const scoreSaved = useClaimPendingScores();
-
-  // When a province is chosen, lazily load its border geometry, then play.
   useEffect(() => {
     if (!selection) return;
     let cancelled = false;
@@ -68,19 +59,6 @@ export function App() {
     setError(null);
   };
 
-  if (multiplayer) {
-    return (
-      <MultiplayerApp
-        initialCode={roomCode}
-        onExit={() => {
-          setMultiplayer(false);
-          setRoomCode(null);
-          window.history.replaceState(null, "", "/");
-        }}
-      />
-    );
-  }
-
   let screen: ReactElement;
   if (config) {
     screen = (
@@ -100,14 +78,44 @@ export function App() {
         onStart={(provinceId, mode, difficulty) =>
           setSelection({ provinceId, mode, difficulty })
         }
-        onMultiplayer={() => setMultiplayer(true)}
+        onMultiplayer={() => navigate("/room")}
       />
     );
   }
 
+  return screen;
+}
+
+export function App() {
+  // Dev-only: warn loudly if any screen spills off the (non-scrolling) viewport.
+  useNoScrollGuard();
+
+  // Claim a score parked before a magic-link sign-in once the player lands back
+  // signed in — and confirm it with a brief banner.
+  const scoreSaved = useClaimPendingScores();
+
   return (
     <>
-      {screen}
+      <Switch>
+        <Route path="/room/:code">
+          {(params) => <MultiplayerRoute code={normalizeCode(params.code)} />}
+        </Route>
+        <Route path="/room">
+          <MultiplayerRoute code={null} />
+        </Route>
+        <Route path="/leaderboard/:provinceId">
+          {(params) => <LeaderboardPage provinceId={params.provinceId} />}
+        </Route>
+        <Route path="/credits">
+          <CreditsPage />
+        </Route>
+        <Route path="/changelog">
+          <ChangelogPage />
+        </Route>
+        <Route>
+          <GameFlow />
+        </Route>
+      </Switch>
       {scoreSaved && (
         <div className="score-saved-banner" role="status">
           Punteggio salvato in classifica ✓

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "wouter";
 import type { Difficulty, GameMode } from "../game/engine";
 import {
   DIFFICULTIES,
@@ -7,8 +8,8 @@ import {
 } from "../leaderboard/constants";
 import { getProvince, PROVINCES } from "../maps/registry";
 import type { OverviewCollection, ProvinceMeta } from "../maps/types";
+import { parseUrlState, updateUrlState } from "../urlState";
 import { HamburgerMenu } from "./HamburgerMenu";
-import { LeaderboardPanel } from "./LeaderboardPanel";
 import { ProvincePicker } from "./ProvincePicker";
 import { ProvinceSearch } from "./ProvinceSearch";
 
@@ -48,11 +49,21 @@ const randomId = (exclude: string) => {
 type Step = "province" | "mode" | "difficulty";
 
 export function HomeScreen({ onStart, onMultiplayer }: HomeScreenProps) {
-  const [selectedId, setSelectedId] = useState(DEFAULT_ID);
+  // Bootstrap from URL params so province/mode links are bookmarkable.
+  const [selectedId, setSelectedId] = useState<string>(() => {
+    const { provinceId } = parseUrlState();
+    return provinceId ?? DEFAULT_ID;
+  });
   const [overview, setOverview] = useState<OverviewCollection | null>(null);
-  const [step, setStep] = useState<Step>("province");
+  const [step, setStep] = useState<Step>(() => {
+    const { mode } = parseUrlState();
+    return mode ? "difficulty" : "province";
+  });
   // The mode picked on the mode step, carried into the difficulty step.
-  const [chosenMode, setChosenMode] = useState<GameMode | null>(null);
+  const [chosenMode, setChosenMode] = useState<GameMode | null>(() => {
+    const { mode } = parseUrlState();
+    return mode;
+  });
 
   // Lazy-load the national picker map so it stays out of the main JS bundle.
   useEffect(() => {
@@ -67,12 +78,20 @@ export function HomeScreen({ onStart, onMultiplayer }: HomeScreenProps) {
 
   const selected = getProvince(selectedId);
 
+  const selectProvince = (id: string) => {
+    setSelectedId(id);
+    updateUrlState(id);
+  };
+
   if (step === "difficulty" && selected && chosenMode) {
     return (
       <DifficultyStep
         province={selected}
         mode={chosenMode}
-        onBack={() => setStep("mode")}
+        onBack={() => {
+          setStep("mode");
+          updateUrlState(selectedId);
+        }}
         onStart={(difficulty) => onStart(selectedId, chosenMode, difficulty)}
       />
     );
@@ -82,10 +101,14 @@ export function HomeScreen({ onStart, onMultiplayer }: HomeScreenProps) {
     return (
       <ModeStep
         province={selected}
-        onBack={() => setStep("province")}
+        onBack={() => {
+          setStep("province");
+          updateUrlState(selectedId);
+        }}
         onPickMode={(mode) => {
           setChosenMode(mode);
           setStep("difficulty");
+          updateUrlState(selectedId, mode);
         }}
       />
     );
@@ -96,8 +119,11 @@ export function HomeScreen({ onStart, onMultiplayer }: HomeScreenProps) {
       selected={selected}
       overview={overview}
       selectedId={selectedId}
-      onSelect={setSelectedId}
-      onRandom={() => setSelectedId((id) => randomId(id))}
+      onSelect={selectProvince}
+      onRandom={() => {
+        const id = randomId(selectedId);
+        selectProvince(id);
+      }}
       onNext={() => setStep("mode")}
       onMultiplayer={onMultiplayer}
     />
@@ -295,14 +321,13 @@ function ModeStep({ province, onBack, onPickMode }: ModeStepProps) {
             </section>
           </div>
         </div>
-
-        <LeaderboardPanel
-          provinceId={province.id}
-          provinceName={province.name}
-        />
       </div>
 
       <footer className="home__foot">
+        <Link href={`/leaderboard/${province.id}`} className="home__foot-link">
+          🏆 Classifica
+        </Link>
+        <span className="home__foot-sep">·</span>
         Un gioco di geografia · dati ISTAT / openpolis
       </footer>
     </div>
