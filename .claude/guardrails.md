@@ -17,7 +17,7 @@ Vite + Cloudflare Pages setup, so we don't have to re-learn them the hard way.
 
 ### Test
 
-- (none yet)
+- **Run tests on Node 22 to match CI** (2026-07-11): CI (`.github/workflows/ci.yml`) pins `node-version: 22`. `src/leaderboard/pendingScore.test.ts` uses the built-in `node:sqlite` (`DatabaseSync`) against the real migrations. Node 24 tightened numbered-parameter binding (`?1,?2,…` with positional `.run(args)`), so those tests throw `column index out of range` **only locally on Node ≥ 24** — CI stays green. A local `npm run test` on Node 24 shows ~7 spurious failures that are NOT real. **Check:** before trusting a local test run, confirm `node --version` is 22.x (`nvm use 22` / `nvm exec 22 npm run test`); a `column index out of range` from `node:sqlite` is a Node-version artifact, not a code bug.
 
 ### Build
 
