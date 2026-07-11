@@ -7,9 +7,9 @@ export interface UrlState {
   mode: GameMode | null;
 }
 
-/** Read permalink params (?p, ?m) from the current URL. */
-export function parseUrlState(): UrlState {
-  const params = new URLSearchParams(window.location.search);
+/** Read permalink params (?p, ?m) from the given search string (defaults to current URL). */
+export function parseUrlState(search = window.location.search): UrlState {
+  const params = new URLSearchParams(search);
   const p = params.get("p");
   const m = params.get("m");
   return {

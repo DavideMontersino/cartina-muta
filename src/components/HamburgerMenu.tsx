@@ -4,7 +4,6 @@ import { AuthMenu } from "./AuthMenu";
 
 interface HamburgerMenuProps {
   provinceId?: string;
-  provinceName?: string;
 }
 
 export function HamburgerMenu({ provinceId }: HamburgerMenuProps) {

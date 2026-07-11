@@ -161,10 +161,7 @@ function ProvinceStep({
           >
             👥 Amici
           </button>
-          <HamburgerMenu
-            provinceId={selected?.id}
-            provinceName={selected?.name}
-          />
+          <HamburgerMenu provinceId={selected?.id} />
         </div>
       </div>
       <header className="home__head">
@@ -237,7 +234,7 @@ function ModeStep({ province, onBack, onPickMode }: ModeStepProps) {
         >
           ← Cambia provincia
         </button>
-        <HamburgerMenu provinceId={province.id} provinceName={province.name} />
+        <HamburgerMenu provinceId={province.id} />
       </div>
       <header className="mode-step__head">
         <div className="mode-step__heading">
@@ -360,7 +357,7 @@ function DifficultyStep({
         >
           ← Cambia modalità
         </button>
-        <HamburgerMenu provinceId={province.id} provinceName={province.name} />
+        <HamburgerMenu provinceId={province.id} />
       </div>
       <header className="mode-step__head">
         <div className="mode-step__heading">
