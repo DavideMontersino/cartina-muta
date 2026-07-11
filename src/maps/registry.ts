@@ -1,10 +1,12 @@
 import { geoCentroid } from "d3-geo";
+import type { MultiPolygon, Polygon } from "geojson";
 import provinces from "./provinces.json";
 import type {
   ComuniCollection,
   ContextCollection,
   MapDefinition,
   MapFeature,
+  OverviewCollection,
   ProvinceMeta,
   ReliefCollection,
   WaterCollection,
@@ -98,4 +100,31 @@ export async function loadContext(
   const loader = contextLoaders[`./context/${id}.json`];
   if (!loader) return null;
   return (await loader()).default;
+}
+
+/* The picker's dissolved province boundaries, lazy-loaded and cached so the one
+   591 KB parse is shared with the home-screen picker (same module chunk). */
+let overviewPromise: Promise<OverviewCollection> | null = null;
+function loadOverview(): Promise<OverviewCollection> {
+  if (!overviewPromise) {
+    overviewPromise = import("./overview.json").then(
+      (m) => m.default as OverviewCollection,
+    );
+  }
+  return overviewPromise;
+}
+
+/**
+ * The dissolved outer boundary of a province. Used to frame the blind (hardcore)
+ * map, where every comune border is hidden — without it the player faces a blank
+ * page. Sourced from the always-available overview data, so it works for every
+ * province (unlike the per-province baked context/terrain).
+ */
+export async function loadProvinceOutline(
+  id: string,
+): Promise<Polygon | MultiPolygon | null> {
+  const overview = await loadOverview();
+  return (
+    overview.features.find((f) => f.properties.id === id)?.geometry ?? null
+  );
 }

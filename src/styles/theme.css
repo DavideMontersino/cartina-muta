@@ -686,14 +686,22 @@ button {
   fill: #9c855f;
 } /* peaks — deep tan */
 
+/* The relief reads as one unit at 60% alpha (group opacity flattens the stacked
+   bands first, so overlaps don't double-blend), muting the terrain so the comune
+   borders and rivers on top stay legible — otherwise rivers and borders blur
+   together against the busy relief. */
+.map-canvas--terrain .relief-layer {
+  opacity: 0.6;
+}
+
 /* With relief on, comune fills go transparent so the bands read through, and
-   the borders darken a touch to stay crisp on top. */
+   the borders darken and thicken a touch to stay crisp over the terrain. */
 .map-canvas--terrain .region {
   fill: var(--region-pending);
   fill-opacity: 0;
   stroke: var(--ink-soft);
-  stroke-opacity: 0.7;
-  stroke-width: 0.5;
+  stroke-opacity: 0.85;
+  stroke-width: 0.9;
 }
 .map-canvas--terrain .region--hover {
   fill: var(--region-hover);
@@ -738,6 +746,16 @@ button {
   fill: var(--teal);
   stroke: #2f5a52;
   stroke-width: 1.4;
+}
+
+/* Hardcore: the province's outer boundary is the one frame the player gets —
+   comune borders stay hidden, so this outlines the shape to hunt inside. */
+.province-outline {
+  fill: none;
+  stroke: var(--ink-soft);
+  stroke-width: 1.1;
+  stroke-opacity: 0.8;
+  stroke-linejoin: round;
 }
 
 /* Waterways: rivers/canals as thin strokes, water bodies filled. */

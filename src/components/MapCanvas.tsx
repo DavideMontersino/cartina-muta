@@ -1,5 +1,5 @@
 import { geoPath } from "d3-geo";
-import type { Feature } from "geojson";
+import type { Feature, MultiPolygon, Polygon } from "geojson";
 import {
   forwardRef,
   useEffect,
@@ -9,7 +9,12 @@ import {
 } from "react";
 import type { RegionStatus } from "../game/engine";
 import { projectMap, VIEW_H, VIEW_W } from "../game/geo";
-import { loadContext, loadRelief, loadWater } from "../maps/registry";
+import {
+  loadContext,
+  loadProvinceOutline,
+  loadRelief,
+  loadWater,
+} from "../maps/registry";
 import type {
   ContextCollection,
   MapDefinition,
@@ -113,6 +118,38 @@ function useLayers(id: string, terrain: boolean): Layers {
   };
 }
 
+/**
+ * Loads a province's dissolved outer boundary, used to frame the hardcore map
+ * (every comune border is hidden, so without it the player faces a blank page).
+ * Only fetches when `enabled`; keyed on the province id so a late resolve for a
+ * previous province is ignored.
+ */
+function useProvinceOutline(
+  id: string,
+  enabled: boolean,
+): Polygon | MultiPolygon | null {
+  const [outline, setOutline] = useState<{
+    id: string;
+    geometry: Polygon | MultiPolygon | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!enabled) {
+      setOutline(null);
+      return;
+    }
+    let cancelled = false;
+    loadProvinceOutline(id).then((geometry) => {
+      if (!cancelled) setOutline({ id, geometry });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, enabled]);
+
+  return outline && outline.id === id ? outline.geometry : null;
+}
+
 export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
   (
     {
@@ -134,6 +171,7 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
     const [hover, setHover] = useState<number | null>(null);
 
     const { context, relief, water } = useLayers(map.id, terrain);
+    const outlineGeom = useProvinceOutline(map.id, hideBorders);
     const clipId = `province-clip-${map.id}`;
 
     // The province's projected box — pan/zoom is clamped to it so you can't drift
@@ -195,8 +233,16 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
         d: path(f as Feature) ?? "",
       }));
 
-      return { contextShapes, contextLabels, bands, waterways };
-    }, [context, relief, water, projected.projection]);
+      const outline = outlineGeom
+        ? (path({
+            type: "Feature",
+            properties: null,
+            geometry: outlineGeom,
+          }) ?? "")
+        : "";
+
+      return { contextShapes, contextLabels, bands, waterways, outline };
+    }, [context, relief, water, outlineGeom, projected.projection]);
 
     const { svgRef, transform, transformCss, style, handlers, setTransform } =
       usePanZoom({
@@ -265,20 +311,25 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
             </g>
           )}
 
-          {/* Relief bands + waterways, clipped to the province. */}
+          {/* Relief bands + waterways, clipped to the province. Relief sits in
+              its own group so its alpha composites as a single unit (bands don't
+              double-blend where they stack), letting the comune borders + rivers
+              on top stay legible. */}
           {hasTerrain && (
             <g
               className="terrain-layer"
               clipPath={`url(#${clipId})`}
               pointerEvents="none"
             >
-              {drawn.bands.map((b) => (
-                <path
-                  key={b.key}
-                  d={b.d}
-                  className={`relief-band relief-band--${b.level}`}
-                />
-              ))}
+              <g className="relief-layer">
+                {drawn.bands.map((b) => (
+                  <path
+                    key={b.key}
+                    d={b.d}
+                    className={`relief-band relief-band--${b.level}`}
+                  />
+                ))}
+              </g>
               {drawn.waterways.map((w) => (
                 <path
                   key={w.key}
@@ -287,6 +338,16 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
                 />
               ))}
             </g>
+          )}
+
+          {/* Hardcore: the province's outer boundary, so the blind map isn't a
+              blank page (every comune border is hidden until it's resolved). */}
+          {hideBorders && drawn.outline && (
+            <path
+              className="province-outline"
+              d={drawn.outline}
+              pointerEvents="none"
+            />
           )}
 
           {/* Comuni — interactive. */}
