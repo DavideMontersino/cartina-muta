@@ -1,6 +1,10 @@
 import type { Difficulty, GameMode } from "../game/engine";
 import { encodeMode } from "./constants";
-import type { LeaderboardEntry, ScoreSubmissionPayload } from "./types";
+import type {
+  GameReplay,
+  LeaderboardEntry,
+  ScoreSubmissionPayload,
+} from "./types";
 
 export interface SubmitScoreResult {
   id: string;
@@ -98,28 +102,46 @@ export async function claimPendingScores(): Promise<number> {
 }
 
 export type FetchLeaderboardResponse =
-  | { ok: true; entries: LeaderboardEntry[] }
+  | { ok: true; entries: LeaderboardEntry[]; meUserId: string | null }
   | { ok: false; error: string };
 
 export async function fetchLeaderboard(
   provinceId: string,
   mode: GameMode,
   difficulty: Difficulty,
-  limit = 20,
 ): Promise<FetchLeaderboardResponse> {
   const params = new URLSearchParams({
     province: provinceId,
     mode: encodeMode(mode),
     difficulty,
-    limit: String(limit),
   });
   try {
     const res = await fetch(`/api/leaderboard?${params}`);
     if (!res.ok) {
       return { ok: false, error: "Impossibile caricare la classifica." };
     }
-    const data = (await res.json()) as { entries: LeaderboardEntry[] };
-    return { ok: true, entries: data.entries };
+    const data = (await res.json()) as {
+      entries: LeaderboardEntry[];
+      meUserId?: string | null;
+    };
+    return { ok: true, entries: data.entries, meUserId: data.meUserId ?? null };
+  } catch {
+    return { ok: false, error: "Servizio non raggiungibile." };
+  }
+}
+
+export type FetchGameResponse =
+  | { ok: true; game: GameReplay }
+  | { ok: false; error: string };
+
+/** Loads one game's full recorded history for replay (GET /api/games/:id, GitHub #25). */
+export async function fetchGame(id: string): Promise<FetchGameResponse> {
+  try {
+    const res = await fetch(`/api/games/${encodeURIComponent(id)}`);
+    if (!res.ok) {
+      return { ok: false, error: "Impossibile caricare la partita." };
+    }
+    return { ok: true, game: (await res.json()) as GameReplay };
   } catch {
     return { ok: false, error: "Servizio non raggiungibile." };
   }

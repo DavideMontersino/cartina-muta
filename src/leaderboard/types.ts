@@ -29,6 +29,8 @@ export interface ScoreSubmissionPayload {
 /** Server → client leaderboard row. */
 export interface LeaderboardEntry {
   rank: number;
+  /** game_result row id of this user's *best* game — the row a replay loads (GitHub #25). */
+  id: string;
   userId: string;
   name: string;
   found: number;
@@ -38,4 +40,23 @@ export interface LeaderboardEntry {
   /** Itemized point total — energy mode only. */
   score?: number | null;
   createdAt: number;
+  /**
+   * Number of recorded actions in this game's log (GitHub #25). A real replay
+   * only exists when the log is long enough — legacy/manual rows carry `[]`
+   * (count 0) and stay non-clickable. See `isReplayable`.
+   */
+  actionCount: number;
+}
+
+/** Server → client payload for a single game's full replay (GET /api/games/:id, GitHub #25). */
+export interface GameReplay {
+  id: string;
+  provinceId: string;
+  name: string;
+  difficulty: Difficulty;
+  found: number;
+  totalRegions: number;
+  elapsedMs: number;
+  createdAt: number;
+  actionLog: ActionLogEntry[];
 }

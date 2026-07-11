@@ -14,6 +14,8 @@ interface BoardRow {
   elapsedMs: number;
   score: number | null;
   createdAt: number;
+  /** Length of the best game's action log — drives replay clickability (GitHub #25). */
+  actionCount: number;
 }
 
 /**
@@ -52,7 +54,8 @@ export async function fetchBoard(
       SELECT best."id" AS id, best."userId" AS userId, u."name" AS name,
              best."found" AS found, best."totalRegions" AS totalRegions,
              best."mistakes" AS mistakes, best."elapsedMs" AS elapsedMs,
-             best."score" AS score, best."createdAt" AS createdAt
+             best."score" AS score, best."createdAt" AS createdAt,
+             COALESCE(json_array_length(best."actionLog"), 0) AS actionCount
       FROM best JOIN "user" u ON u."id" = best."userId"
       WHERE best.rn = 1
       LIMIT ?5`,

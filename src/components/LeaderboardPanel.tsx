@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import type { Difficulty, GameMode } from "../game/engine";
 import { fetchLeaderboard } from "../leaderboard/client";
 import {
@@ -6,7 +6,9 @@ import {
   DIFFICULTY_LABELS,
   TIMER_DURATIONS,
 } from "../leaderboard/constants";
+import { isReplayable } from "../leaderboard/replay";
 import type { LeaderboardEntry } from "../leaderboard/types";
+import { ReplayView } from "./ReplayView";
 
 interface LeaderboardPanelProps {
   provinceId: string;
@@ -26,7 +28,7 @@ const MODE_TABS: { mode: GameMode; label: string }[] = [
 
 type LoadState =
   | { status: "loading" }
-  | { status: "loaded"; entries: LeaderboardEntry[] }
+  | { status: "loaded"; entries: LeaderboardEntry[]; meUserId: string | null }
   | { status: "error"; message: string };
 
 function formatClock(elapsedMs: number): string {
@@ -44,6 +46,8 @@ export function LeaderboardPanel({
   const [modeIndex, setModeIndex] = useState(0);
   const [difficulty, setDifficulty] = useState<Difficulty>(initialDifficulty);
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  // The game currently being replayed (GitHub #25), or null.
+  const [replayId, setReplayId] = useState<string | null>(null);
   const isEnergy = MODE_TABS[modeIndex].mode.kind === "energy";
 
   // Follow the wizard's difficulty selection when it changes upstream.
@@ -59,7 +63,7 @@ export function LeaderboardPanel({
         if (cancelled) return;
         setState(
           res.ok
-            ? { status: "loaded", entries: res.entries }
+            ? { status: "loaded", entries: res.entries, meUserId: res.meUserId }
             : { status: "error", message: res.error },
         );
       },
@@ -112,27 +116,67 @@ export function LeaderboardPanel({
       )}
       {state.status === "loaded" && state.entries.length > 0 && (
         <ol className="leaderboard__list">
-          {state.entries.map((entry) => (
-            <li key={entry.userId} className="leaderboard__row">
-              <span className="leaderboard__rank">{entry.rank}</span>
-              <span className="leaderboard__name">{entry.name}</span>
-              {isEnergy ? (
-                <span className="leaderboard__found">
-                  {entry.score ?? 0} pt
+          {state.entries.map((entry, i) => {
+            const prev = state.entries[i - 1];
+            // Server sends top 10 then a window around "me" (GitHub #28); a
+            // rank jump means an omitted stretch — show an ellipsis divider.
+            const gap = prev ? entry.rank - prev.rank > 1 : false;
+            const replayable = isReplayable(entry.actionCount);
+            const isMe =
+              state.meUserId !== null && entry.userId === state.meUserId;
+
+            const cells = (
+              <>
+                <span className="leaderboard__rank">{entry.rank}</span>
+                <span className="leaderboard__name">{entry.name}</span>
+                {isEnergy ? (
+                  <span className="leaderboard__found">
+                    {entry.score ?? 0} pt
+                  </span>
+                ) : (
+                  <span className="leaderboard__found">
+                    {entry.found}/{entry.totalRegions}
+                  </span>
+                )}
+                <span className="leaderboard__time">
+                  {isEnergy
+                    ? `${entry.found}/${entry.totalRegions}`
+                    : formatClock(entry.elapsedMs)}
                 </span>
-              ) : (
-                <span className="leaderboard__found">
-                  {entry.found}/{entry.totalRegions}
-                </span>
-              )}
-              <span className="leaderboard__time">
-                {isEnergy
-                  ? `${entry.found}/${entry.totalRegions}`
-                  : formatClock(entry.elapsedMs)}
-              </span>
-            </li>
-          ))}
+              </>
+            );
+
+            const rowClass = `leaderboard__row ${isMe ? "is-me" : ""}`;
+
+            return (
+              <Fragment key={entry.userId}>
+                {gap && (
+                  <li className="leaderboard__gap" aria-hidden>
+                    ⋯
+                  </li>
+                )}
+                <li>
+                  {replayable ? (
+                    <button
+                      type="button"
+                      className={`${rowClass} leaderboard__row--clickable`}
+                      onClick={() => setReplayId(entry.id)}
+                      title="Rivedi la partita"
+                    >
+                      {cells}
+                    </button>
+                  ) : (
+                    <div className={rowClass}>{cells}</div>
+                  )}
+                </li>
+              </Fragment>
+            );
+          })}
         </ol>
+      )}
+
+      {replayId && (
+        <ReplayView gameId={replayId} onClose={() => setReplayId(null)} />
       )}
     </aside>
   );
