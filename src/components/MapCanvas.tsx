@@ -34,6 +34,13 @@ interface MapCanvasProps {
   isAnimating?: boolean;
   /** Adds the tinted relief bands + waterways (clipped to the province). */
   terrain?: boolean;
+  /**
+   * Hardcore mode (GitHub #34): hide every pending comune's fill + border so
+   * only resolved (found/missed) comuni — and the one momentarily flashing
+   * under a tap — are visible. Regions stay tappable (transparent fill still
+   * receives pointer events).
+   */
+  hideBorders?: boolean;
 }
 
 export interface MapCanvasRef {
@@ -118,6 +125,7 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
       interactive,
       isAnimating = false,
       terrain = false,
+      hideBorders = false,
     },
     ref,
   ) => {
@@ -218,7 +226,7 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
     return (
       <svg
         ref={svgRef}
-        className={`map-canvas ${isAnimating ? "map-canvas--animating" : ""} ${terrain ? "map-canvas--terrain" : ""}`}
+        className={`map-canvas ${isAnimating ? "map-canvas--animating" : ""} ${terrain ? "map-canvas--terrain" : ""} ${hideBorders ? "map-canvas--hide-borders" : ""}`}
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         role="img"
         aria-label={map.name}

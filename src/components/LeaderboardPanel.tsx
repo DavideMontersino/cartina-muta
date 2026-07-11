@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
-import type { GameMode } from "../game/engine";
+import type { Difficulty, GameMode } from "../game/engine";
 import { fetchLeaderboard } from "../leaderboard/client";
-import { TIMER_DURATIONS } from "../leaderboard/constants";
+import {
+  DIFFICULTIES,
+  DIFFICULTY_LABELS,
+  TIMER_DURATIONS,
+} from "../leaderboard/constants";
 import type { LeaderboardEntry } from "../leaderboard/types";
 
 interface LeaderboardPanelProps {
   provinceId: string;
   provinceName: string;
+  /** Pre-select a difficulty tab (e.g. the one being chosen in the wizard). */
+  difficulty?: Difficulty;
 }
 
 const MODE_TABS: { mode: GameMode; label: string }[] = [
@@ -33,26 +39,35 @@ function formatClock(elapsedMs: number): string {
 export function LeaderboardPanel({
   provinceId,
   provinceName,
+  difficulty: initialDifficulty = "normal",
 }: LeaderboardPanelProps) {
   const [modeIndex, setModeIndex] = useState(0);
+  const [difficulty, setDifficulty] = useState<Difficulty>(initialDifficulty);
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const isEnergy = MODE_TABS[modeIndex].mode.kind === "energy";
+
+  // Follow the wizard's difficulty selection when it changes upstream.
+  useEffect(() => {
+    setDifficulty(initialDifficulty);
+  }, [initialDifficulty]);
 
   useEffect(() => {
     let cancelled = false;
     setState({ status: "loading" });
-    fetchLeaderboard(provinceId, MODE_TABS[modeIndex].mode).then((res) => {
-      if (cancelled) return;
-      setState(
-        res.ok
-          ? { status: "loaded", entries: res.entries }
-          : { status: "error", message: res.error },
-      );
-    });
+    fetchLeaderboard(provinceId, MODE_TABS[modeIndex].mode, difficulty).then(
+      (res) => {
+        if (cancelled) return;
+        setState(
+          res.ok
+            ? { status: "loaded", entries: res.entries }
+            : { status: "error", message: res.error },
+        );
+      },
+    );
     return () => {
       cancelled = true;
     };
-  }, [provinceId, modeIndex]);
+  }, [provinceId, modeIndex, difficulty]);
 
   return (
     <aside className="leaderboard">
@@ -68,6 +83,18 @@ export function LeaderboardPanel({
             onClick={() => setModeIndex(i)}
           >
             {tab.label}
+          </button>
+        ))}
+      </div>
+      <div className="leaderboard__modes leaderboard__difficulties">
+        {DIFFICULTIES.map((d) => (
+          <button
+            key={d}
+            type="button"
+            className={`leaderboard__mode-btn leaderboard__diff-btn ${d === difficulty ? "is-active" : ""}`}
+            onClick={() => setDifficulty(d)}
+          >
+            {DIFFICULTY_LABELS[d]}
           </button>
         ))}
       </div>

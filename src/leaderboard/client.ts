@@ -1,4 +1,4 @@
-import type { GameMode } from "../game/engine";
+import type { Difficulty, GameMode } from "../game/engine";
 import { encodeMode } from "./constants";
 import type { LeaderboardEntry, ScoreSubmissionPayload } from "./types";
 
@@ -104,11 +104,13 @@ export type FetchLeaderboardResponse =
 export async function fetchLeaderboard(
   provinceId: string,
   mode: GameMode,
+  difficulty: Difficulty,
   limit = 20,
 ): Promise<FetchLeaderboardResponse> {
   const params = new URLSearchParams({
     province: provinceId,
     mode: encodeMode(mode),
+    difficulty,
     limit: String(limit),
   });
   try {

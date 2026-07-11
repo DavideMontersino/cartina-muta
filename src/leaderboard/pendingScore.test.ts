@@ -22,6 +22,7 @@ const MIGRATIONS = [
   "0002_leaderboard",
   "0003_energy_mode",
   "0005_pending_score",
+  "0006_difficulty",
 ];
 
 function makeDb(): DatabaseSync {
@@ -58,6 +59,7 @@ function insertPending(
     "cn",
     "energy",
     null,
+    "normal",
     247,
     overrides.found ?? 70,
     0,
@@ -110,13 +112,14 @@ describe("pending score claim SQL", () => {
     expect(pendingCount(db)).toBe(0);
     const row = db
       .prepare(
-        `SELECT "userId","provinceId","modeKind","found","score","totalRegions" FROM "game_result"`,
+        `SELECT "userId","provinceId","modeKind","difficulty","found","score","totalRegions" FROM "game_result"`,
       )
       .get() as Record<string, unknown>;
     expect(row).toMatchObject({
       userId: "u1",
       provinceId: "cn",
       modeKind: "energy",
+      difficulty: "normal",
       found: 70,
       score: 14_020,
       totalRegions: 247,

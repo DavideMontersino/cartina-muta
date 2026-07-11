@@ -47,6 +47,26 @@ describe("validateScoreSubmission", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("defaults an absent difficulty to 'normal'", () => {
+    const result = validateScoreSubmission(basePayload());
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.difficulty).toBe("normal");
+  });
+
+  it("accepts a valid difficulty and carries it through", () => {
+    const result = validateScoreSubmission(
+      basePayload({ difficulty: "hardcore" }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.difficulty).toBe("hardcore");
+  });
+
+  it("rejects an unknown difficulty", () => {
+    expect(
+      validateScoreSubmission(basePayload({ difficulty: "extreme" })).ok,
+    ).toBe(false);
+  });
+
   it("rejects an unknown province", () => {
     expect(validateScoreSubmission(basePayload({ provinceId: "zz" })).ok).toBe(
       false,

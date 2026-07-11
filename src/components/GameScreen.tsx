@@ -28,7 +28,6 @@ import { ConfirmExitDialog } from "./ConfirmExitDialog";
 import { MapCanvas, type MapCanvasRef } from "./MapCanvas";
 import { ResultCard } from "./ResultCard";
 import { TerrainToggle } from "./TerrainToggle";
-import { useTerrainPreference } from "./useTerrainPreference";
 
 interface GameScreenProps {
   config: GameConfig;
@@ -49,7 +48,14 @@ const ENERGY_FACT_POPUP_MS = 3200;
 
 export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   const isEnergy = config.mode.kind === "energy";
-  const [terrain] = useTerrainPreference();
+  // Difficulty (GitHub #34) drives what the map shows, not the reducer:
+  //   - hardcore hides comune borders until each is resolved (and forces
+  //     relief off — the toggle is removed during play),
+  //   - easy starts with relief on, normal with it off.
+  // Relief stays a live toggle in easy/normal (only hardcore locks it).
+  const difficulty = config.difficulty;
+  const hideBorders = difficulty === "hardcore";
+  const [terrain, setTerrain] = useState(difficulty === "easy");
   const [state, dispatch] = useReducer(reducer, config, (c) => createGame(c));
   const [isRevealing, setIsRevealing] = useState(false);
   const [isAnimatingMap, setIsAnimatingMap] = useState(false);
@@ -141,6 +147,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
     return {
       provinceId: config.map.id,
       mode: config.mode,
+      difficulty,
       found: state.found,
       missed: state.missed,
       mistakes: state.mistakes,
@@ -152,6 +159,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
     finalElapsedMs,
     config.map.id,
     config.mode,
+    difficulty,
     isEnergy,
     state.found,
     state.missed,
@@ -434,8 +442,11 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
             interactive={playing}
             isAnimating={isAnimatingMap}
             terrain={terrain}
+            hideBorders={hideBorders}
           />
-          <TerrainToggle />
+          {!hideBorders && (
+            <TerrainToggle value={terrain} onChange={setTerrain} />
+          )}
           {wrongIndex !== null && (
             <div key={wrongKey} className="wrong-name-toast">
               {config.map.features[wrongIndex].name}
@@ -653,8 +664,11 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
           interactive={playing}
           isAnimating={isAnimatingMap}
           terrain={terrain}
+          hideBorders={hideBorders}
         />
-        <TerrainToggle />
+        {!hideBorders && (
+          <TerrainToggle value={terrain} onChange={setTerrain} />
+        )}
         {wrongIndex !== null && (
           <div key={wrongKey} className="wrong-name-toast">
             {config.map.features[wrongIndex].name}

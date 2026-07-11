@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
-import type { GameMode } from "../game/engine";
-import { TIMER_DURATIONS } from "../leaderboard/constants";
+import type { Difficulty, GameMode } from "../game/engine";
+import {
+  DIFFICULTIES,
+  DIFFICULTY_LABELS,
+  TIMER_DURATIONS,
+} from "../leaderboard/constants";
 import { getProvince, PROVINCES } from "../maps/registry";
 import type { OverviewCollection, ProvinceMeta } from "../maps/types";
 import { HamburgerMenu } from "./HamburgerMenu";
@@ -9,7 +13,7 @@ import { ProvincePicker } from "./ProvincePicker";
 import { ProvinceSearch } from "./ProvinceSearch";
 
 interface HomeScreenProps {
-  onStart: (provinceId: string, mode: GameMode) => void;
+  onStart: (provinceId: string, mode: GameMode, difficulty: Difficulty) => void;
   onMultiplayer: () => void;
 }
 
@@ -18,6 +22,20 @@ const TIMER_OPTIONS = TIMER_DURATIONS.map((seconds) => ({
   seconds,
 }));
 
+/** One-line description of each difficulty for the chooser cards (GitHub #34). */
+const DIFFICULTY_DESC: Record<Difficulty, string> = {
+  easy: "Rilievo e confini dei comuni sempre visibili. Per iniziare in scioltezza.",
+  normal: "Confini visibili, ma niente rilievo a darti una mano.",
+  hardcore:
+    "Nessun confine: appare solo un istante quando tocchi, poi sparisce. E niente rilievo.",
+};
+
+function modeLabel(mode: GameMode): string {
+  if (mode.kind === "energy") return "Corsa a energia";
+  if (mode.kind === "complete") return "Completa tutti";
+  return `A tempo · ${mode.durationSeconds / 60} min`;
+}
+
 const DEFAULT_ID = getProvince("cn") ? "cn" : (PROVINCES[0]?.id ?? "");
 
 const randomId = (exclude: string) => {
@@ -25,14 +43,16 @@ const randomId = (exclude: string) => {
   return pool[Math.floor(Math.random() * pool.length)]?.id ?? exclude;
 };
 
-// A two-step wizard keeps each screen inside the (non-scrolling) viewport:
-// pick a province, then pick a game mode. See CLAUDE.md — no page scroll.
-type Step = "province" | "mode";
+// A wizard keeps each screen inside the (non-scrolling) viewport: pick a
+// province, then a game mode, then a difficulty. See CLAUDE.md — no page scroll.
+type Step = "province" | "mode" | "difficulty";
 
 export function HomeScreen({ onStart, onMultiplayer }: HomeScreenProps) {
   const [selectedId, setSelectedId] = useState(DEFAULT_ID);
   const [overview, setOverview] = useState<OverviewCollection | null>(null);
   const [step, setStep] = useState<Step>("province");
+  // The mode picked on the mode step, carried into the difficulty step.
+  const [chosenMode, setChosenMode] = useState<GameMode | null>(null);
 
   // Lazy-load the national picker map so it stays out of the main JS bundle.
   useEffect(() => {
@@ -47,12 +67,26 @@ export function HomeScreen({ onStart, onMultiplayer }: HomeScreenProps) {
 
   const selected = getProvince(selectedId);
 
+  if (step === "difficulty" && selected && chosenMode) {
+    return (
+      <DifficultyStep
+        province={selected}
+        mode={chosenMode}
+        onBack={() => setStep("mode")}
+        onStart={(difficulty) => onStart(selectedId, chosenMode, difficulty)}
+      />
+    );
+  }
+
   if (step === "mode" && selected) {
     return (
       <ModeStep
         province={selected}
         onBack={() => setStep("province")}
-        onStart={(mode) => onStart(selectedId, mode)}
+        onPickMode={(mode) => {
+          setChosenMode(mode);
+          setStep("difficulty");
+        }}
       />
     );
   }
@@ -160,10 +194,10 @@ function ProvinceStep({
 interface ModeStepProps {
   province: ProvinceMeta;
   onBack: () => void;
-  onStart: (mode: GameMode) => void;
+  onPickMode: (mode: GameMode) => void;
 }
 
-function ModeStep({ province, onBack, onStart }: ModeStepProps) {
+function ModeStep({ province, onBack, onPickMode }: ModeStepProps) {
   const [timerSeconds, setTimerSeconds] = useState<number>(
     TIMER_OPTIONS[0].seconds,
   );
@@ -203,9 +237,9 @@ function ModeStep({ province, onBack, onStart }: ModeStepProps) {
               <button
                 type="button"
                 className="btn btn--primary"
-                onClick={() => onStart({ kind: "energy" })}
+                onClick={() => onPickMode({ kind: "energy" })}
               >
-                Inizia
+                Continua →
               </button>
             </div>
           </section>
@@ -235,10 +269,10 @@ function ModeStep({ province, onBack, onStart }: ModeStepProps) {
                   type="button"
                   className="btn btn--primary"
                   onClick={() =>
-                    onStart({ kind: "timer", durationSeconds: timerSeconds })
+                    onPickMode({ kind: "timer", durationSeconds: timerSeconds })
                   }
                 >
-                  Inizia
+                  Continua →
                 </button>
               </div>
             </section>
@@ -253,9 +287,9 @@ function ModeStep({ province, onBack, onStart }: ModeStepProps) {
                 <button
                   type="button"
                   className="btn btn--primary"
-                  onClick={() => onStart({ kind: "complete" })}
+                  onClick={() => onPickMode({ kind: "complete" })}
                 >
-                  Inizia
+                  Continua →
                 </button>
               </div>
             </section>
@@ -271,6 +305,69 @@ function ModeStep({ province, onBack, onStart }: ModeStepProps) {
       <footer className="home__foot">
         Un gioco di geografia · dati ISTAT / openpolis
       </footer>
+    </div>
+  );
+}
+
+interface DifficultyStepProps {
+  province: ProvinceMeta;
+  mode: GameMode;
+  onBack: () => void;
+  onStart: (difficulty: Difficulty) => void;
+}
+
+// Second level of the mode choice (GitHub #34): pick how much the map helps
+// you. A focused chooser (no leaderboard) so the three cards always fit the
+// non-scrolling viewport on a phone.
+function DifficultyStep({
+  province,
+  mode,
+  onBack,
+  onStart,
+}: DifficultyStepProps) {
+  return (
+    <div className="wizard">
+      <div className="wizard__bar">
+        <button
+          type="button"
+          className="btn btn--ghost mode-step__back"
+          onClick={onBack}
+        >
+          ← Cambia modalità
+        </button>
+        <HamburgerMenu provinceId={province.id} provinceName={province.name} />
+      </div>
+      <header className="mode-step__head">
+        <div className="mode-step__heading">
+          <h1 className="home__title mode-step__title">{province.name}</h1>
+          <p className="home__sub mode-step__sub">{modeLabel(mode)}</p>
+        </div>
+      </header>
+
+      <div className="mode-step__body">
+        <div className="modes mode-step__modes difficulty-cards">
+          {DIFFICULTIES.map((difficulty) => (
+            <section
+              key={difficulty}
+              className={`mode-card difficulty-card difficulty-card--${difficulty}`}
+            >
+              <h2 className="mode-card__title">
+                {DIFFICULTY_LABELS[difficulty]}
+              </h2>
+              <p className="mode-card__desc">{DIFFICULTY_DESC[difficulty]}</p>
+              <div className="mode-card__actions">
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() => onStart(difficulty)}
+                >
+                  Inizia
+                </button>
+              </div>
+            </section>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

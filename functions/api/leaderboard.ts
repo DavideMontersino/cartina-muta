@@ -1,17 +1,20 @@
 import type { AuthEnv } from "../../src/auth/env";
 import { fetchBoard } from "../../src/leaderboard/board";
-import { decodeMode } from "../../src/leaderboard/constants";
+import { decodeDifficulty, decodeMode } from "../../src/leaderboard/constants";
 // Direct JSON import (not `../maps/registry`, which uses Vite-only
 // `import.meta.glob` that esbuild — wrangler's Pages Functions bundler —
 // cannot handle).
 import provinces from "../../src/maps/provinces.json";
 
-// GET /api/leaderboard?province=<id>&mode=<complete|timer:N>&limit=<n>
+// GET /api/leaderboard?province=<id>&mode=<complete|timer:N>&difficulty=<easy|normal|hardcore>&limit=<n>
 export const onRequestGet: PagesFunction<AuthEnv> = async (ctx) => {
   const url = new URL(ctx.request.url);
   const provinceId = url.searchParams.get("province");
   const modeParam = url.searchParams.get("mode");
   const limitParam = url.searchParams.get("limit");
+  // Absent/unknown difficulty falls back to "normal" so older clients that
+  // don't send the param still get a valid board (GitHub #34).
+  const difficulty = decodeDifficulty(url.searchParams.get("difficulty"));
 
   if (!provinceId || !provinces.some((p) => p.id === provinceId)) {
     return Response.json({ error: "Unknown province." }, { status: 400 });
@@ -29,11 +32,13 @@ export const onRequestGet: PagesFunction<AuthEnv> = async (ctx) => {
     provinceId,
     mode.kind,
     modeDurationSeconds,
+    difficulty,
   );
 
   return Response.json({
     province: provinceId,
     mode: modeParam,
+    difficulty,
     entries: board.slice(0, limit),
   });
 };

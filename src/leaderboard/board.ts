@@ -1,4 +1,4 @@
-import type { GameMode } from "../game/engine";
+import type { Difficulty, GameMode } from "../game/engine";
 import { compareEnergyEntries, rankEntries } from "./rank";
 import type { LeaderboardEntry } from "./types";
 
@@ -27,6 +27,7 @@ export async function fetchBoard(
   provinceId: string,
   modeKind: GameMode["kind"],
   modeDurationSeconds: number | null,
+  difficulty: Difficulty,
 ): Promise<LeaderboardEntry[]> {
   const isEnergy = modeKind === "energy";
   // Which single row counts as a user's "best" game (picked before board-wide
@@ -46,6 +47,7 @@ export async function fetchBoard(
           ) AS rn
         FROM "game_result" gr
         WHERE gr."provinceId" = ?1 AND gr."modeKind" = ?2 AND gr."modeDurationSeconds" IS ?3
+          AND gr."difficulty" = ?4
       )
       SELECT best."id" AS id, best."userId" AS userId, u."name" AS name,
              best."found" AS found, best."totalRegions" AS totalRegions,
@@ -53,9 +55,15 @@ export async function fetchBoard(
              best."score" AS score, best."createdAt" AS createdAt
       FROM best JOIN "user" u ON u."id" = best."userId"
       WHERE best.rn = 1
-      LIMIT ?4`,
+      LIMIT ?5`,
     )
-    .bind(provinceId, modeKind, modeDurationSeconds, BOARD_FETCH_CAP)
+    .bind(
+      provinceId,
+      modeKind,
+      modeDurationSeconds,
+      difficulty,
+      BOARD_FETCH_CAP,
+    )
     .all<BoardRow>();
 
   return rankEntries(

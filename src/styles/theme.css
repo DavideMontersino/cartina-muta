@@ -243,7 +243,27 @@ button {
   justify-content: center;
   gap: 2rem;
   width: 100%;
+  /* A little top/bottom breathing room so the fade mask below lands on
+     padding rather than clipping the first card's title. */
+  padding-block: 0.5rem;
   overflow-y: auto;
+  /* Fade the scroll edges to transparent instead of a hard clip line — same
+     gradient-to-transparent language as .hud--overlay and the picker mask
+     (GitHub #33). */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 4%,
+    black 96%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 4%,
+    black 96%,
+    transparent 100%
+  );
 }
 .mode-step__modes {
   flex: 1;
@@ -253,7 +273,10 @@ button {
   .mode-step__body {
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    /* Top-align (not center) once stacked: a centered flex column taller than
+       its box pushes the first item above the scroll origin, leaving the top
+       clipped and unreachable — the "opens pre-scrolled" bug (GitHub #33). */
+    justify-content: flex-start;
   }
 }
 /* Phone compacting for the mode step lives after the base .modes/.mode-card/
@@ -686,6 +709,35 @@ button {
 .map-canvas--terrain .region--reveal,
 .map-canvas--terrain .region--flash {
   fill-opacity: 0.85;
+}
+
+/* Hardcore (GitHub #34): comune fills + borders are invisible until a comune
+   is resolved. Pending regions keep a transparent (not `none`) fill so the SVG
+   path still receives taps. Relief is forced off in hardcore, so these never
+   combine with .map-canvas--terrain. Overrides come after the blanket-hide
+   rule so found/missed/flash/reveal (each two classes, same specificity) win
+   on source order and re-reveal a comune once it's played or tapped. */
+.map-canvas--hide-borders .region {
+  fill: transparent;
+  fill-opacity: 1;
+  stroke: transparent;
+}
+.map-canvas--hide-borders .region--found {
+  fill: var(--region-found);
+  stroke: var(--olive-deep);
+}
+.map-canvas--hide-borders .region--missed {
+  fill: var(--region-missed);
+  stroke: var(--terracotta);
+}
+.map-canvas--hide-borders .region--flash {
+  fill: var(--terracotta);
+  stroke: var(--terracotta);
+}
+.map-canvas--hide-borders .region--reveal {
+  fill: var(--teal);
+  stroke: #2f5a52;
+  stroke-width: 1.4;
 }
 
 /* Waterways: rivers/canals as thin strokes, water bodies filled. */
@@ -1492,6 +1544,20 @@ button {
   color: var(--paper);
   border-color: var(--ink);
 }
+/* Difficulty row (GitHub #34): a second, quieter tab row under the mode tabs —
+   its active pill takes the terracotta accent to read as a different axis. */
+.leaderboard__difficulties {
+  margin-top: -0.5rem;
+}
+.leaderboard__diff-btn {
+  font-size: 0.74rem;
+  padding: 0.25rem 0.65rem;
+}
+.leaderboard__diff-btn.is-active {
+  background: var(--terracotta);
+  color: var(--paper);
+  border-color: var(--terracotta);
+}
 .leaderboard__list {
   list-style: none;
   margin: 0;
@@ -1601,6 +1667,35 @@ button {
 @media (max-width: 900px) {
   .mode-step__body .leaderboard {
     display: none;
+  }
+}
+
+/* ---------- Difficulty step (GitHub #34) ---------- */
+/* Three stacked cards, compacted so they clear the fold on a phone (the step
+   carries no leaderboard). Each takes a quiet accent border to hint its ramp
+   from gentle (olive) to punishing (terracotta). */
+.difficulty-cards .mode-card__desc {
+  min-height: 0;
+  margin-bottom: 0.85rem;
+}
+.difficulty-card--easy {
+  border-left: 3px solid var(--olive);
+}
+.difficulty-card--normal {
+  border-left: 3px solid var(--gold);
+}
+.difficulty-card--hardcore {
+  border-left: 3px solid var(--terracotta);
+}
+@media (max-height: 520px) {
+  /* Landscape: lay the three difficulty cards in a row, like the mode step. */
+  .difficulty-cards {
+    flex-direction: row;
+    align-items: stretch;
+    max-width: none;
+  }
+  .difficulty-cards .mode-card {
+    flex: 1 1 0;
   }
 }
 

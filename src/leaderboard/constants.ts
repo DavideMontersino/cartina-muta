@@ -1,8 +1,34 @@
-import type { GameMode } from "../game/engine";
+import type { Difficulty, GameMode } from "../game/engine";
 
 /** Timer durations offered on the home screen and accepted by the leaderboard API. */
 export const TIMER_DURATIONS = [60, 300, 600] as const;
 export type TimerDuration = (typeof TIMER_DURATIONS)[number];
+
+/**
+ * Difficulty presets (GitHub #34), in display order. Every board splits three
+ * ways along this axis, so it's part of the leaderboard query and stored rows.
+ * "normal" is the default — the pre-difficulty behaviour and the backfill value
+ * for rows recorded before the feature existed.
+ */
+export const DIFFICULTIES = ["easy", "normal", "hardcore"] as const;
+
+/** Italian labels for the difficulty tabs / wizard cards. */
+export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
+  easy: "Facile",
+  normal: "Normale",
+  hardcore: "Hardcore",
+};
+
+export function isDifficulty(raw: unknown): raw is Difficulty {
+  return (
+    typeof raw === "string" && (DIFFICULTIES as readonly string[]).includes(raw)
+  );
+}
+
+/** Parse a difficulty query-string value, falling back to "normal" when absent. */
+export function decodeDifficulty(raw: string | null | undefined): Difficulty {
+  return isDifficulty(raw) ? raw : "normal";
+}
 
 /** Compact mode encoding shared by the leaderboard query string and stored rows, e.g. "timer:60" / "complete" / "energy". */
 export function encodeMode(mode: GameMode): string {

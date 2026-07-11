@@ -1,4 +1,4 @@
-import type { GameMode } from "../game/engine";
+import type { Difficulty, GameMode } from "../game/engine";
 
 /** One recorded player action, timestamped relative to game start (ms). */
 export interface ActionLogEntry {
@@ -15,6 +15,8 @@ export interface ActionLogEntry {
 export interface ScoreSubmissionPayload {
   provinceId: string;
   mode: GameMode;
+  /** Visibility preset the run was played at — splits the board (GitHub #34). */
+  difficulty: Difficulty;
   found: number;
   missed: number;
   mistakes: number;

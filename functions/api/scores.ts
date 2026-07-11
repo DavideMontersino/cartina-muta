@@ -30,6 +30,7 @@ export const onRequestPost: PagesFunction<AuthEnv> = async (ctx) => {
   const {
     provinceId,
     mode,
+    difficulty,
     found,
     missed,
     mistakes,
@@ -46,8 +47,8 @@ export const onRequestPost: PagesFunction<AuthEnv> = async (ctx) => {
 
   await ctx.env.DB.prepare(
     `INSERT INTO "game_result"
-      ("id","userId","provinceId","modeKind","modeDurationSeconds","totalRegions","found","missed","mistakes","elapsedMs","score","actionLog","createdAt")
-     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)`,
+      ("id","userId","provinceId","modeKind","modeDurationSeconds","difficulty","totalRegions","found","missed","mistakes","elapsedMs","score","actionLog","createdAt")
+     VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)`,
   )
     .bind(
       id,
@@ -55,6 +56,7 @@ export const onRequestPost: PagesFunction<AuthEnv> = async (ctx) => {
       provinceId,
       mode.kind,
       modeDurationSeconds,
+      difficulty,
       totalRegions,
       found,
       missed,
@@ -71,6 +73,7 @@ export const onRequestPost: PagesFunction<AuthEnv> = async (ctx) => {
     provinceId,
     mode.kind,
     modeDurationSeconds,
+    difficulty,
   );
   // Match by user, not by this row's id: the board only ever surfaces each
   // user's best score, so this submission's rank is the user's best rank

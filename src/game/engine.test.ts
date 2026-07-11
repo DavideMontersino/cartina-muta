@@ -57,6 +57,7 @@ const noShuffleRng = () => 0.999999;
 const startComplete = (n: number): GameConfig => ({
   map: fakeMap(n),
   mode: { kind: "complete" },
+  difficulty: "normal",
 });
 
 describe("shuffle", () => {
@@ -175,7 +176,11 @@ describe("reducer — complete mode", () => {
 describe("reducer — timer mode", () => {
   it("finishes when the clock runs out", () => {
     let s = createGame(
-      { map: fakeMap(5), mode: { kind: "timer", durationSeconds: 2 } },
+      {
+        map: fakeMap(5),
+        mode: { kind: "timer", durationSeconds: 2 },
+        difficulty: "normal",
+      },
       noShuffleRng,
     );
     s = reducer(s, { type: "tick" });
@@ -188,7 +193,11 @@ describe("reducer — timer mode", () => {
 
   it("tracks elapsed seconds", () => {
     let s = createGame(
-      { map: fakeMap(5), mode: { kind: "timer", durationSeconds: 60 } },
+      {
+        map: fakeMap(5),
+        mode: { kind: "timer", durationSeconds: 60 },
+        difficulty: "normal",
+      },
       noShuffleRng,
     );
     s = reducer(s, { type: "tick" });
@@ -225,6 +234,7 @@ const noWeightRng = () => 0;
 const startEnergy = (n: number): GameConfig => ({
   map: fakeGeoMap(n),
   mode: { kind: "energy" },
+  difficulty: "normal",
 });
 
 describe("reducer — energy mode", () => {
@@ -253,6 +263,17 @@ describe("reducer — energy mode", () => {
     });
     expect(s.score).toBe(s.scoreBreakdown?.total);
     expect(s.energy).toBe(ENERGY_CONFIG.start); // already at max, refill clamps
+  });
+
+  it("refills energy by the (halved) first-try amount when below max", () => {
+    // GitHub #34 halved the refill; lock the exact value and that a correct
+    // guess from below max tops it up by that amount (not clamped at 100).
+    expect(ENERGY_CONFIG.refill).toEqual({ bullseye: 10, near: 5, far: 2.5 });
+    let s = createGame(startEnergy(3), noWeightRng);
+    s = { ...s, energy: 50 };
+    const target = currentTarget(s) as number;
+    s = reducer(s, { type: "guess", index: target, roundElapsedMs: 500 });
+    expect(s.energy).toBe(50 + ENERGY_CONFIG.refill.bullseye);
   });
 
   it("does not award the speed bonus past the threshold", () => {

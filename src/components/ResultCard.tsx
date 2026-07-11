@@ -90,6 +90,7 @@ export function ResultCard({
             <LeaderboardPanel
               provinceId={provinceId}
               provinceName={provinceName}
+              difficulty={submission?.difficulty}
             />
           </div>
         )}

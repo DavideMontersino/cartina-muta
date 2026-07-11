@@ -6,11 +6,24 @@ export type GameMode =
   | { kind: "complete" }
   | { kind: "energy" };
 
+/**
+ * Visibility preset chosen alongside the mode (GitHub #34). Orthogonal to
+ * `GameMode` — it only affects what the player sees (relief + comune borders),
+ * never the reducer's scoring/order logic — but it is recorded with every
+ * result so leaderboards split three ways per mode.
+ *   - easy: relief on + borders visible.
+ *   - normal: relief off, borders visible.
+ *   - hardcore: relief off, borders hidden until a comune is resolved
+ *     (found/skipped/lost), flashing only momentarily on a tap.
+ */
+export type Difficulty = "easy" | "normal" | "hardcore";
+
 export type RegionStatus = "pending" | "found" | "missed";
 
 export interface GameConfig {
   map: MapDefinition;
   mode: GameMode;
+  difficulty: Difficulty;
 }
 
 export interface Feedback {
@@ -81,7 +94,10 @@ export const ENERGY_CONFIG = {
   drainPerSecond: 0.625,
   /** Drain rate grows this fraction per minute survived. */
   drainGrowthPerMinute: 0.1,
-  refill: { bullseye: 20, near: 10, far: 5 },
+  // Halved from the original { 20, 10, 5 } (GitHub #34): correct guesses were
+  // refilling energy too generously, so runs rarely ended on the drain. Energy
+  // is a float internally, so the exact halves (incl. 2.5) are fine.
+  refill: { bullseye: 10, near: 5, far: 2.5 },
   wrongAttemptCost: 8,
   maxAttempts: 3,
   /** Base score per attempt number (1st/2nd/3rd try). */

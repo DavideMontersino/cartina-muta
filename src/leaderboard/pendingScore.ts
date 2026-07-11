@@ -23,8 +23,8 @@ export function normalizeEmail(email: string): string {
 }
 
 export const INSERT_PENDING_SCORE_SQL = `INSERT INTO "pending_score"
-  ("id","email","provinceId","modeKind","modeDurationSeconds","totalRegions","found","missed","mistakes","elapsedMs","score","actionLog","createdAt")
- VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)`;
+  ("id","email","provinceId","modeKind","modeDurationSeconds","difficulty","totalRegions","found","missed","mistakes","elapsedMs","score","actionLog","createdAt")
+ VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14)`;
 
 /** Sweep every pending row older than the TTL (param: cutoff = now − TTL). */
 export const DELETE_EXPIRED_PENDING_SQL = `DELETE FROM "pending_score" WHERE "createdAt" < ?1`;
@@ -41,8 +41,8 @@ export const CAP_PENDING_PER_EMAIL_SQL = `DELETE FROM "pending_score"
 // duplicates. Email is compared case-insensitively in case Better Auth stored
 // the user's address with different casing than we parked it under.
 export const CLAIM_INSERT_SQL = `INSERT OR IGNORE INTO "game_result"
-  ("id","userId","provinceId","modeKind","modeDurationSeconds","totalRegions","found","missed","mistakes","elapsedMs","score","actionLog","createdAt")
- SELECT ps."id", ?1, ps."provinceId", ps."modeKind", ps."modeDurationSeconds", ps."totalRegions", ps."found", ps."missed", ps."mistakes", ps."elapsedMs", ps."score", ps."actionLog", ps."createdAt"
+  ("id","userId","provinceId","modeKind","modeDurationSeconds","difficulty","totalRegions","found","missed","mistakes","elapsedMs","score","actionLog","createdAt")
+ SELECT ps."id", ?1, ps."provinceId", ps."modeKind", ps."modeDurationSeconds", ps."difficulty", ps."totalRegions", ps."found", ps."missed", ps."mistakes", ps."elapsedMs", ps."score", ps."actionLog", ps."createdAt"
  FROM "pending_score" ps
  WHERE lower(ps."email") = lower(?2) AND ps."createdAt" >= ?3`;
 

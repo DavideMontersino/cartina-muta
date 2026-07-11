@@ -39,6 +39,7 @@ export const onRequestPost: PagesFunction<AuthEnv> = async (ctx) => {
   const {
     provinceId,
     mode,
+    difficulty,
     found,
     missed,
     mistakes,
@@ -62,6 +63,7 @@ export const onRequestPost: PagesFunction<AuthEnv> = async (ctx) => {
       provinceId,
       mode.kind,
       modeDurationSeconds,
+      difficulty,
       totalRegions,
       found,
       missed,

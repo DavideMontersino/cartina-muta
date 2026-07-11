@@ -4,7 +4,7 @@
 // Cloudflare Pages bundles independently with esbuild — Vite-only syntax
 // there would break the Functions build.
 import provinces from "../maps/provinces.json";
-import { TIMER_DURATIONS } from "./constants";
+import { isDifficulty, TIMER_DURATIONS } from "./constants";
 import type { ActionLogEntry, ScoreSubmissionPayload } from "./types";
 
 const MAX_ACTION_LOG_ENTRIES = 5000;
@@ -44,6 +44,14 @@ export function validateScoreSubmission(raw: unknown): SubmissionValidation {
   const modeResult = validateMode(body.mode);
   if (!modeResult.ok) return modeResult;
   const mode = modeResult.value;
+
+  // Difficulty splits the board (GitHub #34). Absent → "normal" so pre-feature
+  // clients (and the pending/claim round-trip) still validate; an explicit but
+  // unknown value is rejected as malformed.
+  if (body.difficulty !== undefined && !isDifficulty(body.difficulty)) {
+    return { ok: false, error: "Invalid difficulty." };
+  }
+  const difficulty = isDifficulty(body.difficulty) ? body.difficulty : "normal";
 
   const { found, missed, mistakes, elapsedMs } = body;
   if (
@@ -90,6 +98,7 @@ export function validateScoreSubmission(raw: unknown): SubmissionValidation {
     value: {
       provinceId: body.provinceId,
       mode,
+      difficulty,
       found,
       missed,
       mistakes,

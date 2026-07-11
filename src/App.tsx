@@ -4,7 +4,7 @@ import { HomeScreen } from "./components/HomeScreen";
 import { LoadingScreen } from "./components/LoadingScreen";
 import { MultiplayerApp } from "./components/multiplayer/MultiplayerApp";
 import { useNoScrollGuard } from "./dev/useNoScrollGuard";
-import type { GameConfig, GameMode } from "./game/engine";
+import type { Difficulty, GameConfig, GameMode } from "./game/engine";
 import { useClaimPendingScores } from "./leaderboard/useClaimPendingScores";
 import { getProvince, loadMap } from "./maps/registry";
 import { normalizeCode } from "./multiplayer/code";
@@ -12,6 +12,7 @@ import { normalizeCode } from "./multiplayer/code";
 interface Selection {
   provinceId: string;
   mode: GameMode;
+  difficulty: Difficulty;
 }
 
 /** A `/room/CODE` deep link opens straight into the multiplayer join flow. */
@@ -46,7 +47,12 @@ export function App() {
     setError(null);
     loadMap(selection.provinceId)
       .then((map) => {
-        if (!cancelled) setConfig({ map, mode: selection.mode });
+        if (!cancelled)
+          setConfig({
+            map,
+            mode: selection.mode,
+            difficulty: selection.difficulty,
+          });
       })
       .catch(() => {
         if (!cancelled) setError("Impossibile caricare la mappa. Riprova.");
@@ -91,7 +97,9 @@ export function App() {
   } else {
     screen = (
       <HomeScreen
-        onStart={(provinceId, mode) => setSelection({ provinceId, mode })}
+        onStart={(provinceId, mode, difficulty) =>
+          setSelection({ provinceId, mode, difficulty })
+        }
         onMultiplayer={() => setMultiplayer(true)}
       />
     );
