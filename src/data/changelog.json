@@ -1,6 +1,11 @@
 [
   {
     "date": "2026-07-11",
+    "sha": "d4b539a3670500e39885b407c881216bdf82efe3",
+    "description": "Sostituite le emoji con icone più curate: dadi, trofeo, amici, menu, fiamma della serie e medaglie ora hanno un aspetto più pulito e coerente."
+  },
+  {
+    "date": "2026-07-11",
     "sha": "397f2fcb3392791210283d064a5eff26e7daea71",
     "description": "I nomi delle province vicine non vengono più tagliati ai bordi della mappa. Su schermi piccoli o in verticale le etichette crescono automaticamente per restare leggibili."
   },
