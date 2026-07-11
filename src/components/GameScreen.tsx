@@ -96,6 +96,8 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   const revealTimer = useRef<number | undefined>(undefined);
   const reactionTimer = useRef<number | undefined>(undefined);
   const energyToastTimer = useRef<number | undefined>(undefined);
+  // Resolving this early cancels the energyFact popup timer (dismiss on click).
+  const energyFactResolveRef = useRef<(() => void) | null>(null);
   // The target a pending energy-mode guess was against — captured so the
   // "3rd miss" auto-reveal (which advances the round before this effect
   // sees it) still knows which region to flash, mirroring the skip flow.
@@ -231,7 +233,11 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
       const campanile = pickCampanile(istat) ?? undefined;
       if (fact || campanile) {
         setEnergyFact({ id: performance.now(), tone: "fail", fact, campanile });
-        await new Promise((r) => setTimeout(r, ENERGY_FACT_POPUP_MS));
+        await new Promise<void>((resolve) => {
+          energyFactResolveRef.current = resolve;
+          setTimeout(resolve, ENERGY_FACT_POPUP_MS);
+        });
+        energyFactResolveRef.current = null;
         if (!active) return;
         setEnergyFact(null);
       }
@@ -388,7 +394,11 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
             fact,
             campanile,
           });
-          await new Promise((r) => setTimeout(r, ENERGY_FACT_POPUP_MS));
+          await new Promise<void>((resolve) => {
+            energyFactResolveRef.current = resolve;
+            setTimeout(resolve, ENERGY_FACT_POPUP_MS);
+          });
+          energyFactResolveRef.current = null;
           setEnergyFact(null);
         }
       }
@@ -438,7 +448,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
             revealIndex={revealIndex}
             onPick={handlePick}
             panZoom
-            interactive={playing}
+            interactive={playing && !isRevealing}
             isAnimating={isAnimatingMap}
             terrain={terrain}
             hideBorders={hideBorders}
@@ -449,9 +459,15 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
             </div>
           )}
           {energyFact && (
+            // biome-ignore lint/a11y/useKeyWithClickEvents: popup dismissal is a convenience shortcut, not the only interaction path
+            // biome-ignore lint/a11y/noStaticElementInteractions: same as above
             <div
               key={energyFact.id}
               className={`reaction-toast reaction-toast--${energyFact.tone} energy-fact-toast`}
+              onClick={() => {
+                energyFactResolveRef.current?.();
+                energyFactResolveRef.current = null;
+              }}
             >
               {energyFact.campanile && (
                 <img
@@ -632,9 +648,19 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
 
       <div className="map-wrap">
         {reaction && (
+          // biome-ignore lint/a11y/useKeyWithClickEvents: popup dismissal is a convenience shortcut, not the only interaction path
+          // biome-ignore lint/a11y/noStaticElementInteractions: same as above
           <div
             key={reaction.id}
-            className={`reaction-toast reaction-toast--${reaction.tone}`}
+            className={`reaction-toast reaction-toast--${reaction.tone}${reaction.tone !== "miss" ? " reaction-toast--interactive" : ""}`}
+            onClick={
+              reaction.tone !== "miss"
+                ? () => {
+                    window.clearTimeout(reactionTimer.current);
+                    setReaction(null);
+                  }
+                : undefined
+            }
           >
             {reaction.campanile && (
               <img
@@ -657,7 +683,9 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
           revealIndex={revealIndex}
           onPick={handlePick}
           panZoom
-          interactive={playing}
+          interactive={
+            playing && (reaction === null || reaction.tone === "miss")
+          }
           isAnimating={isAnimatingMap}
           terrain={terrain}
           hideBorders={hideBorders}

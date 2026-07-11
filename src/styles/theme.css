@@ -583,6 +583,11 @@ button {
   pointer-events: none;
   animation: reaction-toast-fade 2.6s ease forwards;
 }
+/* Win/fail toasts block map clicks and can be tapped to dismiss early. */
+.reaction-toast--interactive {
+  pointer-events: all;
+  cursor: pointer;
+}
 .reaction-toast:has(.reaction-toast__campanile),
 .reaction-toast:has(.reaction-toast__fact) {
   border-radius: 1rem;
@@ -1148,6 +1153,8 @@ button {
   left: 50%;
   transform: translate(-50%, -50%);
   z-index: 6;
+  pointer-events: all;
+  cursor: pointer;
   animation: energy-fact-fade 3.2s ease forwards;
 }
 @keyframes energy-fact-fade {
