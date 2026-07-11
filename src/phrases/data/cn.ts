@@ -30,7 +30,7 @@ export const cnPhrases: PartialPhraseSet = {
     "Gadan, mettici più impegno!",
     "Tüpin vuoto, altro che comune giusto!",
     "Crin catòlic, parli bene ma clicchi male!",
-    "Pelacurdin!"
+    "Pelacurdin!",
   ],
   streakCorrect3: [
     "Tre di fila, brau davvero!",
