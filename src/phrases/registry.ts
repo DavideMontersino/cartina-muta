@@ -42,28 +42,32 @@ const nonEmpty = (pool: string[] | undefined): pool is string[] =>
   !!pool && pool.length > 0;
 
 /**
- * Phrase pool for a given event, resolved through the override stack:
- * municipality (`istat`) → province → region → generic Italian set. The
- * municipality layer only customises plain `correct` (its `win` lines) and
- * plain `wrong` (its `miss` lines); streak milestones fall through to the
- * coarser layers.
+ * Phrase pool for a given event, built additively:
+ * - Municipality `win`/`miss` lines override for that specific comune only.
+ * - Province, region, and national phrases are all combined into one pool so
+ *   any layer can be chosen at random — province flavour doesn't displace the
+ *   generic Italian set, it expands it.
  */
 export function getPhrasePool(
   provinceId: string,
   event: ReactionEvent,
   istat?: string,
 ): string[] {
+  // Municipality is specific enough to stand alone for correct/wrong events.
   if (istat) {
     const muni = municipalityFlavor[istat];
     if (event === "correct" && nonEmpty(muni?.win)) return muni.win;
     if (event === "wrong" && nonEmpty(muni?.miss)) return muni.miss;
   }
-  const province = provincePhrases[provinceId]?.[event];
-  if (nonEmpty(province)) return province;
+
+  // Additive: national + region + province, all in one pool.
+  const pool: string[] = [...defaultPhrases[event]];
   const region = regionOfProvince(provinceId);
   const regional = region ? regionPhrases[region]?.[event] : undefined;
-  if (nonEmpty(regional)) return regional;
-  return defaultPhrases[event];
+  if (nonEmpty(regional)) pool.push(...regional);
+  const province = provincePhrases[provinceId]?.[event];
+  if (nonEmpty(province)) pool.push(...province);
+  return pool;
 }
 
 /** Phrase pool for giving up / revealing a comune: its `fail` lines, else generic. */

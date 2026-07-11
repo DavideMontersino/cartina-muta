@@ -237,7 +237,7 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
       const contextLabels = (context?.labels ?? []).flatMap((l, i) => {
         const p = project(l.at);
         if (!p) return [];
-        const nick = nicknameFor(l.name);
+        const nick = nicknameFor(l.name, map.id);
         return [
           {
             key: `lbl-${i}`,
@@ -272,7 +272,7 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
         : "";
 
       return { contextShapes, contextLabels, bands, waterways, outline };
-    }, [context, relief, water, outlineGeom, projected.projection]);
+    }, [context, relief, water, outlineGeom, projected.projection, map.id]);
 
     const { svgRef, transformCss, style, handlers, setTransform } = usePanZoom({
       enabled: panZoom && interactive && !isAnimating,

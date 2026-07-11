@@ -49,22 +49,20 @@ describe("selectReactionEvent", () => {
 });
 
 describe("getPhrasePool", () => {
-  it("falls back to the default set for a province with no overrides", () => {
-    expect(getPhrasePool("unknown-province", "correct")).toBe(
+  it("returns the default phrases for a province with no overrides", () => {
+    expect(getPhrasePool("unknown-province", "correct")).toEqual(
       defaultPhrases.correct,
     );
   });
 
-  it("uses the province override when present", () => {
+  it("expands the default pool with province phrases when present", () => {
     const pool = getPhrasePool("cn", "wrong");
-    expect(pool).not.toBe(defaultPhrases.wrong);
-    expect(pool.length).toBeGreaterThan(0);
+    // Additive: both default and province phrases are in the pool.
+    expect(pool.length).toBeGreaterThan(defaultPhrases.wrong.length);
+    for (const p of defaultPhrases.wrong) expect(pool).toContain(p);
   });
 
-  it("falls back per-event when the province only overrides some events", () => {
-    // cn has no override for a made-up-missing key path is covered by type
-    // system, so instead assert a real event it does define differs from
-    // the default while every event always resolves to a non-empty pool.
+  it("always returns a non-empty pool; for provinces with no overrides the pool equals the defaults", () => {
     const events = [
       "correct",
       "wrong",
@@ -77,7 +75,8 @@ describe("getPhrasePool", () => {
     ] as const;
     for (const event of events) {
       expect(getPhrasePool("cn", event).length).toBeGreaterThan(0);
-      expect(getPhrasePool("bo", event)).toBe(defaultPhrases[event]);
+      // "bo" has no province or region overrides — pool equals the defaults.
+      expect(getPhrasePool("bo", event)).toEqual(defaultPhrases[event]);
     }
   });
 
@@ -124,23 +123,26 @@ describe("getPhrasePool — override stack", () => {
     );
   });
 
-  it("only overrides plain correct/wrong at the municipality layer", () => {
-    // Torino has no streak override, so a streak event falls through to the
-    // province ("to") pool, not anything municipality-specific.
-    expect(getPhrasePool("to", "streakCorrect3", TORINO)).toBe(
-      toPhrases.streakCorrect3,
-    );
+  it("does not apply the municipality layer for streak events — uses additive pool", () => {
+    // Torino's municipality has no streak phrases; the additive pool (national +
+    // province) is returned. Both layers should be present.
+    const pool = getPhrasePool("to", "streakCorrect3", TORINO);
+    for (const p of defaultPhrases.streakCorrect3) expect(pool).toContain(p);
+    for (const p of toPhrases.streakCorrect3 ?? []) expect(pool).toContain(p);
   });
 
-  it("falls back to the province pool for an unknown istat", () => {
-    expect(getPhrasePool("to", "correct", "999999")).toBe(toPhrases.correct);
+  it("includes both national and province phrases for an unknown istat", () => {
+    const pool = getPhrasePool("to", "correct", "999999");
+    for (const p of defaultPhrases.correct) expect(pool).toContain(p);
+    for (const p of toPhrases.correct ?? []) expect(pool).toContain(p);
   });
 
-  it("falls back to the region pool when comune and province are silent", () => {
-    // "to" defines no streakWrong5; its region (Piemonte) does.
-    expect(getPhrasePool("to", "streakWrong5")).toBe(
-      regionPhrases.Piemonte.streakWrong5,
-    );
+  it("includes region phrases in the additive pool when province has no override for the event", () => {
+    // "to" defines no streakWrong5; Piemonte does. Both national + regional appear.
+    const pool = getPhrasePool("to", "streakWrong5");
+    for (const p of defaultPhrases.streakWrong5) expect(pool).toContain(p);
+    for (const p of regionPhrases.Piemonte.streakWrong5 ?? [])
+      expect(pool).toContain(p);
   });
 });
 

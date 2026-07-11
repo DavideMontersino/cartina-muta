@@ -1,36 +1,52 @@
 import { PROVINCES } from "../maps/registry";
+import {
+  LABEL_NAME_TO_KEY,
+  nationalLabelPools,
+  provinceLabelPools,
+} from "./data/labels";
 
-/** Province name (e.g. "Imperia") -> its region (e.g. "Liguria"). */
 const regionByProvinceName: Record<string, string> = Object.fromEntries(
   PROVINCES.map((p) => [p.name, p.region]),
 );
 
-/**
- * Slightly-insulting nicknames for the lands around a played province, shown on
- * the map in place of the real neighbour/country label. Keyed by the exact
- * label text (a province name, a region name, or a country name). A province
- * label with no nickname of its own falls back to its region's nickname — so
- * "Liguria" covers Imperia, Savona, Genova and La Spezia at once.
- *
- * Keep it affectionate campanilismo, not actual slurs.
- */
-const nicknames: Record<string, string> = {
-  // Regions (apply to every neighbouring province in them, via region fallback)
-  Liguria: "Terra dei tirchi",
-  Lombardia: "Quelli col risotto giallo",
-  "Valle d'Aosta": "I montanari col bilinguismo",
-  // Countries
-  Francia: "I cugini boriosi",
-  Svizzera: "Quelli dei conti in banca",
-};
+function pickRandom(pool: string[]): string | null {
+  if (pool.length === 0) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function buildPool(key: string, provinceId?: string): string[] {
+  const national = nationalLabelPools[key] ?? [];
+  const local = provinceId ? (provinceLabelPools[provinceId]?.[key] ?? []) : [];
+  return [...national, ...local];
+}
 
 /**
- * The nickname to show for a neighbour label, or null to keep the real name.
- * Resolution: the exact label name → (for a province) its region → null.
+ * Returns a randomly picked phrase for a neighbour label, or null to keep the
+ * real name. The pool is national + province-specific (additive), so phrases
+ * from both layers are equally eligible.
+ *
+ * Falls back to the label's region pool when the province label itself has
+ * no entry (e.g. "Vercelli" falls back to "Piemonte").
+ *
+ * @param name       Italian label name as it appears on the map (e.g. "Francia")
+ * @param provinceId 2-letter id of the played province (e.g. "cn") for local flavour
  */
-export function nicknameFor(name: string): string | null {
-  if (name in nicknames) return nicknames[name];
+export function nicknameFor(name: string, provinceId?: string): string | null {
+  const key = LABEL_NAME_TO_KEY[name];
+  if (key) {
+    const pool = buildPool(key, provinceId);
+    if (pool.length > 0) return pickRandom(pool);
+  }
+
+  // Region fallback: if name is a province with no pool, try its region.
   const region = regionByProvinceName[name];
-  if (region && region in nicknames) return nicknames[region];
+  if (region) {
+    const regionKey = LABEL_NAME_TO_KEY[region];
+    if (regionKey) {
+      const pool = buildPool(regionKey, provinceId);
+      if (pool.length > 0) return pickRandom(pool);
+    }
+  }
+
   return null;
 }
