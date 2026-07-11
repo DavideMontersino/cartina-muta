@@ -1,6 +1,11 @@
 [
   {
     "date": "2026-07-11",
+    "sha": "a6ac94d913777aba382e37646fa0e2afc6596da9",
+    "description": "I nomi di mari, regioni vicine e stati confinanti ora vengono disposti negli spazi liberi attorno alla provincia: mai sopra la mappa da indovinare, senza sovrapporsi tra loro, con il testo ingrandito il più possibile e ruotato quando serve. I nomi dei mari restano sull'acqua e quelli delle terre sulla terraferma; se non c'è spazio leggibile, l'etichetta non viene mostrata."
+  },
+  {
+    "date": "2026-07-11",
     "sha": "d4b539a3670500e39885b407c881216bdf82efe3",
     "description": "Sostituite le emoji con icone più curate: dadi, trofeo, amici, menu, fiamma della serie e medaglie ora hanno un aspetto più pulito e coerente."
   },
