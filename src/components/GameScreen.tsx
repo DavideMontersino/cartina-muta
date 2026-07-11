@@ -27,7 +27,6 @@ import type {
 import { ConfirmExitDialog } from "./ConfirmExitDialog";
 import { MapCanvas, type MapCanvasRef } from "./MapCanvas";
 import { ResultCard } from "./ResultCard";
-import { TerrainToggle } from "./TerrainToggle";
 
 interface GameScreenProps {
   config: GameConfig;
@@ -49,13 +48,13 @@ const ENERGY_FACT_POPUP_MS = 3200;
 export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   const isEnergy = config.mode.kind === "energy";
   // Difficulty (GitHub #34) drives what the map shows, not the reducer:
-  //   - hardcore hides comune borders until each is resolved (and forces
-  //     relief off — the toggle is removed during play),
-  //   - easy starts with relief on, normal with it off.
-  // Relief stays a live toggle in easy/normal (only hardcore locks it).
+  //   - hardcore hides comune borders until each is resolved (relief off),
+  //   - easy shows relief, normal + hardcore don't.
+  // The difficulty fixes relief for the whole game — there's no in-game toggle,
+  // so a mode can't be softened by turning relief on/off mid-play.
   const difficulty = config.difficulty;
   const hideBorders = difficulty === "hardcore";
-  const [terrain, setTerrain] = useState(difficulty === "easy");
+  const terrain = difficulty === "easy";
   const [state, dispatch] = useReducer(reducer, config, (c) => createGame(c));
   const [isRevealing, setIsRevealing] = useState(false);
   const [isAnimatingMap, setIsAnimatingMap] = useState(false);
@@ -444,9 +443,6 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
             terrain={terrain}
             hideBorders={hideBorders}
           />
-          {!hideBorders && (
-            <TerrainToggle value={terrain} onChange={setTerrain} />
-          )}
           {wrongIndex !== null && (
             <div key={wrongKey} className="wrong-name-toast">
               {config.map.features[wrongIndex].name}
@@ -666,9 +662,6 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
           terrain={terrain}
           hideBorders={hideBorders}
         />
-        {!hideBorders && (
-          <TerrainToggle value={terrain} onChange={setTerrain} />
-        )}
         {wrongIndex !== null && (
           <div key={wrongKey} className="wrong-name-toast">
             {config.map.features[wrongIndex].name}
