@@ -4,6 +4,23 @@ import { sendEmail } from "./email";
 import type { AuthEnv } from "./env";
 
 /**
+ * Origins the app is publicly served from, in addition to the per-request
+ * origin and whatever `BETTER_AUTH_URL` is set to (e.g. localhost in dev).
+ * Kept as a named constant so a domain rename is a one-line, reviewable change
+ * and can be regression-tested.
+ *
+ * `campanilismi.davidemontersino.com` is the current custom domain (issue #31);
+ * `cartina-muta.pages.dev` is the Cloudflare Pages deploy origin and
+ * `cartina-muta.davidemontersino.com` the previous custom domain — both kept so
+ * existing links/sessions keep working through the domain cutover.
+ */
+export const STATIC_TRUSTED_ORIGINS = [
+  "https://campanilismi.davidemontersino.com",
+  "https://cartina-muta.pages.dev",
+  "https://cartina-muta.davidemontersino.com",
+] as const;
+
+/**
  * Single source of truth for auth config (auditable secret/provider wiring).
  *
  * `createAuth` takes `env` and returns a fresh instance per request — Workers
@@ -24,12 +41,7 @@ export function createAuth(env: AuthEnv, request?: Request) {
     // custom domain; trust the callbackURL from either one (plus whatever
     // BETTER_AUTH_URL is set to, e.g. localhost in dev).
     trustedOrigins: Array.from(
-      new Set([
-        baseURL,
-        env.BETTER_AUTH_URL,
-        "https://cartina-muta.pages.dev",
-        "https://cartina-muta.davidemontersino.com",
-      ]),
+      new Set([baseURL, env.BETTER_AUTH_URL, ...STATIC_TRUSTED_ORIGINS]),
     ),
     emailAndPassword: {
       enabled: true,
