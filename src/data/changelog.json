@@ -1,1 +1,7 @@
-[]
+[
+  {
+    "date": "2026-07-11",
+    "sha": "0dde305d1cf327e8ac288276d0f4beee89bc54cd",
+    "description": "Tutte le schermate hanno ora un indirizzo diretto: seleziona una provincia o una modalità e il link si aggiorna. Classifica e crediti sono ora pagine vere (non più finestre sovrapposte). Aggiunta la pagina Novità con la cronologia degli aggiornamenti."
+  }
+]
