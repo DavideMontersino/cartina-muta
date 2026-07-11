@@ -44,6 +44,10 @@ export interface Feedback {
 /** Itemized score components for the last correct energy-mode guess. */
 export interface ScoreBreakdown {
   base: number;
+  /** How many correct guesses in a row led to this one (the streak length). */
+  correctStreak: number;
+  /** Points multiplier the streak length earned (1, 2, or 3) — capped, so it is
+   * NOT the same number as `correctStreak`. */
   streakMultiplier: number;
   speedBonus: number;
   firstTryBonus: number;
@@ -280,6 +284,7 @@ function energyGuess(
       attempts: 0,
       scoreBreakdown: {
         base,
+        correctStreak,
         streakMultiplier,
         speedBonus,
         firstTryBonus,

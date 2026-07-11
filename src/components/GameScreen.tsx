@@ -485,7 +485,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
                     <span className="energy-toast__detail">
                       {[
                         state.scoreBreakdown.streakMultiplier > 1
-                          ? `× ${state.scoreBreakdown.streakMultiplier} streak`
+                          ? `🔥 serie di ${state.scoreBreakdown.correctStreak} · punti ×${state.scoreBreakdown.streakMultiplier}`
                           : null,
                         state.scoreBreakdown.firstTryBonus > 0
                           ? "primo colpo"
