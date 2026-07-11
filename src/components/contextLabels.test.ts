@@ -26,26 +26,59 @@ function provinceGrid(
 /** Same obstacle for both surfaces — the common case in these tests. */
 const both = (g: Uint8Array) => ({ land: g, sea: g });
 
-/** Is the (padded) box of a placed label clear of the province rectangle? */
+type Placed = {
+  x: number;
+  y: number;
+  angle: number;
+  fontVB: number;
+  name: string;
+};
+
+/** The four corners of a placed label's (unpadded) oriented box, in viewBox units. */
+function corners(cfg: PlaceConfig, l: Placed): Array<[number, number]> {
+  const r = (l.angle * Math.PI) / 180;
+  const ux = Math.cos(r);
+  const uy = Math.sin(r);
+  const vx = -uy;
+  const vy = ux;
+  const hL = 0.5 * cfg.charWidth * l.name.length * l.fontVB;
+  const hH = 0.5 * cfg.lineHeight * l.fontVB;
+  const pts: Array<[number, number]> = [];
+  for (const sl of [-hL, hL])
+    for (const sh of [-hH, hH])
+      pts.push([l.x + sl * ux + sh * vx, l.y + sl * uy + sh * vy]);
+  return pts;
+}
+
+/** Is the oriented box of a placed label clear of an obstacle grid? Samples the
+ *  rotated box (matching the placer's own emptiness test). */
 function boxClearOfProvince(
   cfg: PlaceConfig,
   grid: Uint8Array,
-  l: { x: number; y: number; angle: number; fontVB: number; name: string },
+  l: Placed,
 ): boolean {
-  const { gw, gh, viewW, viewH, charWidth, lineHeight, padVB } = cfg;
+  const { gw, gh, viewW, viewH, charWidth, lineHeight } = cfg;
   const cellW = viewW / gw;
   const cellH = viewH / gh;
-  const runHalf = 0.5 * charWidth * l.name.length * l.fontVB + padVB;
-  const capHalf = 0.5 * lineHeight * l.fontVB + padVB;
-  const hx = l.angle === 0 ? runHalf : capHalf;
-  const hy = l.angle === 0 ? capHalf : runHalf;
-  const gx0 = Math.max(0, Math.floor((l.x - hx) / cellW));
-  const gx1 = Math.min(gw - 1, Math.floor((l.x + hx) / cellW));
-  const gy0 = Math.max(0, Math.floor((l.y - hy) / cellH));
-  const gy1 = Math.min(gh - 1, Math.floor((l.y + hy) / cellH));
-  for (let y = gy0; y <= gy1; y++) {
-    for (let x = gx0; x <= gx1; x++) {
-      if (grid[y * gw + x]) return false;
+  const cell = Math.min(cellW, cellH);
+  const r = (l.angle * Math.PI) / 180;
+  const ux = Math.cos(r);
+  const uy = Math.sin(r);
+  const vx = -uy;
+  const vy = ux;
+  const hL = 0.5 * charWidth * l.name.length * l.fontVB;
+  const hH = 0.5 * lineHeight * l.fontVB;
+  const nL = Math.max(1, Math.ceil((2 * hL) / cell));
+  const nH = Math.max(1, Math.ceil((2 * hH) / cell));
+  for (let i = 0; i <= nL; i++) {
+    const sl = -hL + (2 * hL * i) / nL;
+    for (let j = 0; j <= nH; j++) {
+      const sh = -hH + (2 * hH * j) / nH;
+      const x = l.x + sl * ux + sh * vx;
+      const y = l.y + sl * uy + sh * vy;
+      const gx = Math.min(gw - 1, Math.max(0, Math.floor(x / cellW)));
+      const gy = Math.min(gh - 1, Math.max(0, Math.floor(y / cellH)));
+      if (grid[gy * gw + gx]) return false;
     }
   }
   return true;
@@ -77,14 +110,12 @@ describe("placeLabels", () => {
       { name: "Mare", kind: "sea", nick: false, seedX: 960, seedY: 760 },
     ];
     for (const l of placeLabels(both(grid), seeds)) {
-      const runHalf = 0.5 * cfg.charWidth * l.name.length * l.fontVB;
-      const capHalf = 0.5 * cfg.lineHeight * l.fontVB;
-      const hx = l.angle === 0 ? runHalf : capHalf;
-      const hy = l.angle === 0 ? capHalf : runHalf;
-      expect(l.x - hx).toBeGreaterThanOrEqual(0);
-      expect(l.x + hx).toBeLessThanOrEqual(cfg.viewW);
-      expect(l.y - hy).toBeGreaterThanOrEqual(0);
-      expect(l.y + hy).toBeLessThanOrEqual(cfg.viewH);
+      for (const [x, y] of corners(cfg, l)) {
+        expect(x).toBeGreaterThanOrEqual(0);
+        expect(x).toBeLessThanOrEqual(cfg.viewW);
+        expect(y).toBeGreaterThanOrEqual(0);
+        expect(y).toBeLessThanOrEqual(cfg.viewH);
+      }
     }
   });
 
@@ -102,7 +133,43 @@ describe("placeLabels", () => {
     ];
     const placed = placeLabels(both(grid), seeds);
     expect(placed).toHaveLength(1);
-    expect(Math.abs(placed[0].angle)).toBe(90);
+    // A near-vertical orientation (not horizontal) is needed to fit the column.
+    expect(Math.abs(placed[0].angle)).toBeGreaterThanOrEqual(60);
+    expect(boxClearOfProvince(cfg, grid, placed[0])).toBe(true);
+  });
+
+  it("uses a diagonal orientation to fit a diagonal corridor", () => {
+    // Free space is a slanted band along the (1,1) diagonal; everything else is
+    // obstacle. Only a diagonally-oriented label fits — a wedge like a coast arc.
+    const { gw, gh, viewW, viewH } = cfg;
+    const grid = new Uint8Array(gw * gh);
+    const cellW = viewW / gw;
+    const cellH = viewH / gh;
+    const cx0 = viewW / 2;
+    const cy0 = viewH / 2;
+    // Normal to the (1,1) direction is (1,-1)/√2; block cells far from the band.
+    for (let y = 0; y < gh; y++) {
+      for (let x = 0; x < gw; x++) {
+        const px = (x + 0.5) * cellW - cx0;
+        const py = (y + 0.5) * cellH - cy0;
+        const perp = Math.abs((px - py) / Math.SQRT2);
+        if (perp > 55) grid[y * gw + x] = 1;
+      }
+    }
+    const seeds: LabelSeed[] = [
+      {
+        name: "Costiera",
+        kind: "province",
+        nick: false,
+        seedX: cx0,
+        seedY: cy0,
+      },
+    ];
+    const placed = placeLabels(both(grid), seeds);
+    expect(placed).toHaveLength(1);
+    // The (1,1) direction is +45° in SVG's y-down coordinates.
+    expect(placed[0].angle).toBeGreaterThan(20);
+    expect(placed[0].angle).toBeLessThan(70);
     expect(boxClearOfProvince(cfg, grid, placed[0])).toBe(true);
   });
 
