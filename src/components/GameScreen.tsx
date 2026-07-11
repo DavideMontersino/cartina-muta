@@ -1,5 +1,7 @@
+import { Flame } from "lucide-react";
 import {
   type CSSProperties,
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -495,18 +497,35 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
                     state.scoreBreakdown.firstTryBonus > 0 ||
                     state.scoreBreakdown.speedBonus > 0) && (
                     <span className="energy-toast__detail">
-                      {[
-                        state.scoreBreakdown.streakMultiplier > 1
-                          ? `🔥 serie di ${state.scoreBreakdown.correctStreak} · punti ×${state.scoreBreakdown.streakMultiplier}`
-                          : null,
-                        state.scoreBreakdown.firstTryBonus > 0
-                          ? "primo colpo"
-                          : state.scoreBreakdown.speedBonus > 0
-                            ? "fulmineo"
+                      {(
+                        [
+                          state.scoreBreakdown.streakMultiplier > 1
+                            ? {
+                                key: "streak",
+                                node: (
+                                  <span className="energy-toast__streak">
+                                    <Flame size={14} aria-hidden="true" /> serie
+                                    di {state.scoreBreakdown.correctStreak} ·
+                                    punti ×
+                                    {state.scoreBreakdown.streakMultiplier}
+                                  </span>
+                                ),
+                              }
                             : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
+                          state.scoreBreakdown.firstTryBonus > 0
+                            ? { key: "first-try", node: "primo colpo" }
+                            : state.scoreBreakdown.speedBonus > 0
+                              ? { key: "speed", node: "fulmineo" }
+                              : null,
+                        ] as const
+                      )
+                        .filter((item) => item !== null)
+                        .map(({ key, node }, i) => (
+                          <Fragment key={key}>
+                            {i > 0 && " · "}
+                            {node}
+                          </Fragment>
+                        ))}
                     </span>
                   )}
                   {energyToast.campanile && (

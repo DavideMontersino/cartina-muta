@@ -1,3 +1,4 @@
+import { Dices, Trophy, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import type { Difficulty, GameMode } from "../game/engine";
@@ -159,7 +160,7 @@ function ProvinceStep({
             className="btn btn--ghost btn--sm"
             onClick={onMultiplayer}
           >
-            👥 Amici
+            <Users size={16} aria-hidden="true" /> Amici
           </button>
           <HamburgerMenu provinceId={selected?.id} />
         </div>
@@ -182,7 +183,7 @@ function ProvinceStep({
           className="btn btn--ghost picker-controls__random"
           onClick={onRandom}
         >
-          🎲 A caso
+          <Dices size={16} aria-hidden="true" /> A caso
         </button>
       </div>
 
@@ -322,7 +323,7 @@ function ModeStep({ province, onBack, onPickMode }: ModeStepProps) {
 
       <footer className="home__foot">
         <Link href={`/leaderboard/${province.id}`} className="home__foot-link">
-          🏆 Classifica
+          <Trophy size={14} aria-hidden="true" /> Classifica
         </Link>
         <span className="home__foot-sep">·</span>
         Un gioco di geografia · dati ISTAT / openpolis

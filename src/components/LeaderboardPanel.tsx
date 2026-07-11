@@ -1,3 +1,4 @@
+import { Trophy } from "lucide-react";
 import { Fragment, useEffect, useState } from "react";
 import type { Difficulty, GameMode } from "../game/engine";
 import { fetchLeaderboard } from "../leaderboard/client";
@@ -119,7 +120,7 @@ export function LeaderboardPanel({
       )}
       {state.status === "loaded" && state.entries.length === 0 && (
         <div className="leaderboard__empty">
-          <p className="leaderboard__empty-icon">🏆</p>
+          <Trophy className="leaderboard__empty-icon" aria-hidden="true" />
           <p>Nessun punteggio ancora.</p>
           <p className="leaderboard__empty-cta">Sii il primo!</p>
         </div>

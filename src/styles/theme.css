@@ -76,6 +76,10 @@ button {
 
 /* ---------- Buttons ---------- */
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
   border: 1px solid transparent;
   border-radius: 999px;
   padding: 0.62rem 1.15rem;
@@ -395,6 +399,9 @@ button {
   flex-wrap: wrap;
 }
 .home__foot-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   color: var(--terracotta);
   text-decoration: none;
 }
@@ -1131,6 +1138,12 @@ button {
   letter-spacing: 0.08em;
   margin-top: 0.15rem;
 }
+.energy-toast__streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  vertical-align: middle;
+}
 .energy-toast__miss {
   display: block;
   font-family: var(--font-display);
@@ -1424,6 +1437,9 @@ button {
   gap: 0.5rem;
 }
 .hamburger-popover__item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   border: 1px solid var(--paper-edge);
   background: var(--paper-2);
   color: var(--ink);
@@ -1762,7 +1778,8 @@ button {
   margin: 0;
 }
 .leaderboard__empty-icon {
-  font-size: 2rem;
+  width: 2rem;
+  height: 2rem;
   margin-bottom: 0.4rem;
   opacity: 0.35;
 }
@@ -2470,11 +2487,22 @@ button.leaderboard__row.is-me:focus-visible {
   border-color: var(--terracotta);
 }
 .board__rank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 1.8rem;
-  text-align: center;
   font-weight: 700;
   font-size: 1.1rem;
   color: var(--ink-soft);
+}
+.board__rank--gold {
+  color: #b8860b;
+}
+.board__rank--silver {
+  color: #777;
+}
+.board__rank--bronze {
+  color: #a0522d;
 }
 .board__name {
   width: 6rem;

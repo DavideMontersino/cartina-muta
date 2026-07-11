@@ -1,3 +1,4 @@
+import { Medal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Standing } from "../../multiplayer/protocol";
 
@@ -97,7 +98,11 @@ export function StandingsBoard({
         const fromScore = prevScore.get(s.id) ?? 0;
         const dy = entered ? 0 : (fromRank - i) * ROW;
         const barPct = ((entered ? s.score : fromScore) / maxScore) * 100;
-        const medal = medals ? ["🥇", "🥈", "🥉"][i] : undefined;
+        const medalClass = medals
+          ? ["board__rank--gold", "board__rank--silver", "board__rank--bronze"][
+              i
+            ]
+          : undefined;
         return (
           <li
             key={s.id}
@@ -109,7 +114,9 @@ export function StandingsBoard({
                 : "transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1)",
             }}
           >
-            <span className="board__rank">{medal ?? i + 1}</span>
+            <span className={`board__rank ${medalClass ?? ""}`}>
+              {medalClass ? <Medal size={18} aria-hidden="true" /> : i + 1}
+            </span>
             <span className="board__name">{s.name}</span>
             <span className="board__bar-wrap">
               <span

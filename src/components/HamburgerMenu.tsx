@@ -1,3 +1,4 @@
+import { Info, Menu, Newspaper, Trophy } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { AuthMenu } from "./AuthMenu";
@@ -23,7 +24,7 @@ export function HamburgerMenu({ provinceId }: HamburgerMenuProps) {
         aria-label="Menu"
         onClick={() => setOpen((v) => !v)}
       >
-        ☰
+        <Menu size={18} aria-hidden="true" />
       </button>
       {open && (
         <div className="hamburger-popover">
@@ -34,21 +35,21 @@ export function HamburgerMenu({ provinceId }: HamburgerMenuProps) {
             disabled={!provinceId}
             onClick={() => go(`/leaderboard/${provinceId}`)}
           >
-            🏆 Classifica
+            <Trophy size={15} aria-hidden="true" /> Classifica
           </button>
           <button
             type="button"
             className="hamburger-popover__item"
             onClick={() => go("/credits")}
           >
-            ℹ️ Crediti
+            <Info size={15} aria-hidden="true" /> Crediti
           </button>
           <button
             type="button"
             className="hamburger-popover__item"
             onClick={() => go("/changelog")}
           >
-            📋 Novità
+            <Newspaper size={15} aria-hidden="true" /> Novità
           </button>
         </div>
       )}

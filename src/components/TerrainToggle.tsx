@@ -1,3 +1,4 @@
+import { Mountain } from "lucide-react";
 import { useTerrainPreference } from "./useTerrainPreference";
 
 interface TerrainToggleProps {
@@ -25,7 +26,7 @@ export function TerrainToggle({ value, onChange }: TerrainToggleProps = {}) {
       title={enabled ? "Nascondi rilievo" : "Mostra rilievo"}
       onClick={() => setEnabled(!enabled)}
     >
-      <span aria-hidden="true">⛰️</span>
+      <Mountain size={15} aria-hidden="true" />
       <span className="terrain-toggle__label">Rilievo</span>
     </button>
   );
