@@ -14,6 +14,7 @@ import {
   loadProvinceOutline,
   loadRelief,
   loadWater,
+  PROVINCES,
 } from "../maps/registry";
 import type {
   ContextCollection,
@@ -58,12 +59,34 @@ const CENTER_X = VIEW_W / 2;
 const CENTER_Y = VIEW_H / 2;
 
 /**
- * Base on-screen size (viewBox units) for the map labels, by kind. Divided by
- * the current pan/zoom scale so a label stays a fixed size on screen at any
- * zoom while staying pinned to its geographic anchor.
+ * Size (viewBox units) for the context labels, by kind. Fixed in map space, so
+ * a label scales with the terrain as you zoom (pinned to its geographic anchor),
+ * rather than being held at a constant on-screen size.
  */
 const LABEL_SIZE = { country: 36, sea: 30, province: 28 } as const;
 const CONTEXT_ORDER = { sea: 0, province: 1, country: 2 } as const;
+
+/** Region of each province by name, for tinting neighbours by region. */
+const REGION_BY_PROVINCE = new Map(PROVINCES.map((p) => [p.name, p.region]));
+
+/**
+ * A gentle, deterministic tint per region so neighbouring provinces of the same
+ * region share a colour — grouping them at a glance — without a hand-kept
+ * palette. Hues are spread around the wheel by the golden angle over the fixed,
+ * sorted region set, so even geographically adjacent regions land far apart;
+ * low saturation over the parchment (fill drawn at a low opacity in CSS) keeps
+ * each a quiet wash.
+ */
+const REGION_HUE = new Map(
+  [...new Set(PROVINCES.map((p) => p.region))]
+    .sort()
+    .map((region, i) => [region, Math.round((i * 137.508) % 360)] as const),
+);
+
+function regionTint(region: string): string | null {
+  const hue = REGION_HUE.get(region);
+  return hue === undefined ? null : `hsl(${hue} 42% 66%)`;
+}
 
 interface Layers {
   context: ContextCollection | null;
@@ -198,11 +221,18 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
           (a, b) =>
             CONTEXT_ORDER[a.properties.kind] - CONTEXT_ORDER[b.properties.kind],
         )
-        .map((f, i) => ({
-          key: `ctx-${i}`,
-          kind: f.properties.kind,
-          d: path(f as Feature) ?? "",
-        }));
+        .map((f, i) => {
+          const region =
+            f.properties.kind === "province"
+              ? (REGION_BY_PROVINCE.get(f.properties.name) ?? null)
+              : null;
+          return {
+            key: `ctx-${i}`,
+            kind: f.properties.kind,
+            tint: region ? regionTint(region) : null,
+            d: path(f as Feature) ?? "",
+          };
+        });
 
       const contextLabels = (context?.labels ?? []).flatMap((l, i) => {
         const p = project(l.at);
@@ -244,14 +274,13 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
       return { contextShapes, contextLabels, bands, waterways, outline };
     }, [context, relief, water, outlineGeom, projected.projection]);
 
-    const { svgRef, transform, transformCss, style, handlers, setTransform } =
-      usePanZoom({
-        enabled: panZoom && interactive && !isAnimating,
-        centerX: CENTER_X,
-        centerY: CENTER_Y,
-        bounds: mapBounds,
-        onTap: onPick,
-      });
+    const { svgRef, transformCss, style, handlers, setTransform } = usePanZoom({
+      enabled: panZoom && interactive && !isAnimating,
+      centerX: CENTER_X,
+      centerY: CENTER_Y,
+      bounds: mapBounds,
+      onTap: onPick,
+    });
 
     useImperativeHandle(ref, () => ({
       flyTo: (cx: number, cy: number, scale: number) => {
@@ -306,6 +335,7 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
                   key={c.key}
                   d={c.d}
                   className={`context-shape context-shape--${c.kind}`}
+                  style={c.tint ? { fill: c.tint } : undefined}
                 />
               ))}
             </g>
@@ -403,8 +433,9 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
           </g>
 
           {/* Outside-only context labels (neighbour / country / sea), in an
-              engraved script at a fixed on-screen size (counter-scaled by the
-              current zoom). Never inside the target province — see the bake. */}
+              engraved script pinned to the map: sized in viewBox units so they
+              scale with the terrain as you zoom (not held at a fixed on-screen
+              size). Never inside the target province — see the bake. */}
           {drawn.contextLabels.length > 0 && (
             <g className="context-labels" pointerEvents="none">
               {drawn.contextLabels.map((l) => (
@@ -414,8 +445,8 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
                   y={l.y}
                   className={`context-label context-label--${l.kind} ${l.nick ? "context-label--nick" : ""}`}
                   style={{
-                    fontSize: LABEL_SIZE[l.kind] / transform.scale,
-                    strokeWidth: 4 / transform.scale,
+                    fontSize: LABEL_SIZE[l.kind],
+                    strokeWidth: 4,
                   }}
                 >
                   {l.name}
