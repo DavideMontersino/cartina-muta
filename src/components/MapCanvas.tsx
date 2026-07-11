@@ -23,6 +23,7 @@ import type {
   WaterCollection,
 } from "../maps/types";
 import { nicknameFor } from "../phrases/nicknames";
+import { DEFAULT_CONFIG, type LabelSeed, placeLabels } from "./contextLabels";
 import { usePanZoom } from "./usePanZoom";
 
 interface MapCanvasProps {
@@ -59,16 +60,13 @@ const CENTER_X = VIEW_W / 2;
 const CENTER_Y = VIEW_H / 2;
 
 /**
- * Target physical pixel sizes for context labels. On small / portrait screens
- * the SVG shrinks so viewBox-unit sizes become too tiny; the ResizeObserver in
- * MapCanvas converts these physical targets back to viewBox units and clamps to
- * reasonable floors/ceilings so the labels always feel right-sized for the map.
+ * Readability floor, in *physical* pixels, below which a placed context label
+ * is hidden rather than shown too small to read. Placement maximises the font
+ * geometrically (in viewBox units); the ResizeObserver-measured scale converts
+ * this on-screen floor back to viewBox units so labels drop out on tiny screens
+ * instead of rendering as illegible specks.
  */
-const LABEL_TARGET_PX = { country: 18, sea: 15, province: 14 } as const;
-/** Floor: the label never goes below this in viewBox units (matches the old fixed size). */
-const LABEL_MIN_VB = { country: 36, sea: 30, province: 28 } as const;
-/** Ceiling: prevents labels from swamping the canvas on very small screens. */
-const LABEL_MAX_VB = { country: 54, sea: 46, province: 42 } as const;
+const LABEL_FLOOR_PX = { country: 11, sea: 10, province: 9 } as const;
 const CONTEXT_ORDER = { sea: 0, province: 1, country: 2 } as const;
 
 /** Region of each province by name, for tinting neighbours by region. */
@@ -91,6 +89,38 @@ const REGION_HUE = new Map(
 function regionTint(region: string): string | null {
   const hue = REGION_HUE.get(region);
   return hue === undefined ? null : `hsl(${hue} 42% 66%)`;
+}
+
+/**
+ * Rasterise a set of projected SVG `d` paths into a `gw × gh` occupancy grid —
+ * 1 where any path covers, 0 elsewhere — so the label placer can treat those
+ * shapes as obstacles to route names around. Uses an offscreen 2D canvas: fill
+ * every path, then read back the alpha channel.
+ */
+function rasterizePaths(ds: string[], gw: number, gh: number): Uint8Array {
+  const out = new Uint8Array(gw * gh);
+  const canvas = document.createElement("canvas");
+  canvas.width = gw;
+  canvas.height = gh;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return out;
+  ctx.scale(gw / VIEW_W, gh / VIEW_H);
+  ctx.fillStyle = "#000";
+  for (const d of ds) {
+    if (d) ctx.fill(new Path2D(d));
+  }
+  const { data } = ctx.getImageData(0, 0, gw, gh);
+  for (let i = 0; i < gw * gh; i++) {
+    if (data[i * 4 + 3] > 10) out[i] = 1;
+  }
+  return out;
+}
+
+/** Bitwise-OR two equal-length occupancy grids into a fresh grid. */
+function orMasks(a: Uint8Array, b: Uint8Array): Uint8Array {
+  const out = new Uint8Array(a.length);
+  for (let i = 0; i < a.length; i++) out[i] = a[i] | b[i];
+  return out;
 }
 
 interface Layers {
@@ -200,29 +230,6 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
     // 0 = not yet measured; replaced on first ResizeObserver tick.
     const [svgScale, setSvgScale] = useState(0);
 
-    // viewBox-unit font sizes that keep labels physically readable at any scale.
-    // At scale ≥ 0.5 the formula yields values at or below the MIN floor, so the
-    // labels look identical to the old fixed sizes on desktop. The sizes only grow
-    // on small / portrait screens where scale < 0.5, smoothly closing the gap
-    // between "map shrank but text stayed tiny" and "readable on every device".
-    const labelSize = useMemo(() => {
-      const s = svgScale > 0 ? svgScale : 1;
-      return {
-        country: Math.min(
-          LABEL_MAX_VB.country,
-          Math.max(LABEL_MIN_VB.country, LABEL_TARGET_PX.country / s),
-        ),
-        sea: Math.min(
-          LABEL_MAX_VB.sea,
-          Math.max(LABEL_MIN_VB.sea, LABEL_TARGET_PX.sea / s),
-        ),
-        province: Math.min(
-          LABEL_MAX_VB.province,
-          Math.max(LABEL_MIN_VB.province, LABEL_TARGET_PX.province / s),
-        ),
-      };
-    }, [svgScale]);
-
     const { context, relief, water } = useLayers(map.id, terrain);
     const outlineGeom = useProvinceOutline(map.id, hideBorders);
     const clipId = `province-clip-${map.id}`;
@@ -244,7 +251,6 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
     // Project the vector layers into this viewBox.
     const drawn = useMemo(() => {
       const path = geoPath(projected.projection);
-      const project = projected.projection;
 
       const contextShapes = [...(context?.features ?? [])]
         .sort(
@@ -263,33 +269,6 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
             d: path(f as Feature) ?? "",
           };
         });
-
-      const contextLabels = (context?.labels ?? []).flatMap((l, i) => {
-        const p = project(l.at);
-        if (!p) return [];
-        const nick = nicknameFor(l.name, map.id);
-        const name = nick ?? l.name;
-        const fontSize = labelSize[l.kind];
-        // text-anchor: middle; dominant-baseline: middle — estimate the rendered
-        // half-extents so we can clamp the anchor before it lands under the
-        // SVG overflow:hidden boundary. 0.35 × fontSize is a conservative
-        // per-character width for the italic map font; 0.55 × fontSize is the
-        // cap-half-height. PAD adds a small breathing room at each edge.
-        const halfW = Math.ceil(name.length * fontSize * 0.35);
-        const halfH = Math.ceil(fontSize * 0.55);
-        const PAD = 6;
-        return [
-          {
-            key: `lbl-${i}`,
-            kind: l.kind,
-            name,
-            nick: nick !== null,
-            fontSize,
-            x: Math.max(halfW + PAD, Math.min(VIEW_W - halfW - PAD, p[0])),
-            y: Math.max(halfH + PAD, Math.min(VIEW_H - halfH - PAD, p[1])),
-          },
-        ];
-      });
 
       const bands = (relief?.features ?? []).map((f, i) => ({
         key: `band-${i}`,
@@ -312,16 +291,58 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
           }) ?? "")
         : "";
 
-      return { contextShapes, contextLabels, bands, waterways, outline };
-    }, [
-      context,
-      relief,
-      water,
-      outlineGeom,
-      projected.projection,
-      map.id,
-      labelSize,
-    ]);
+      return { contextShapes, bands, waterways, outline };
+    }, [context, relief, water, outlineGeom, projected.projection]);
+
+    // Free-space placement for the outside-only context labels. Scale-independent
+    // (the viewBox letterboxes, so the surrounding land shown is the same at any
+    // aspect/orientation) and computed from the projected province rasterised as
+    // an obstacle, so no label ever lands on the province being played. Recomputed
+    // only when the map or its context data changes — not on pan/zoom or resize.
+    const placedLabels = useMemo(() => {
+      if (typeof document === "undefined" || !context?.labels?.length)
+        return [];
+      const project = projected.projection;
+      const path = geoPath(project);
+      const seeds: LabelSeed[] = context.labels.flatMap((l) => {
+        const p = project(l.at);
+        if (!p) return [];
+        const nick = nicknameFor(l.name, map.id);
+        return [
+          {
+            name: nick ?? l.name,
+            kind: l.kind,
+            nick: nick !== null,
+            seedX: p[0],
+            seedY: p[1],
+          },
+        ];
+      });
+      if (!seeds.length) return [];
+
+      const { gw, gh } = DEFAULT_CONFIG;
+      // Rasterise the three surfaces the labels care about.
+      const target = rasterizePaths(
+        shapes.map((s) => s.d),
+        gw,
+        gh,
+      );
+      const neighbourDs: string[] = [];
+      const seaDs: string[] = [];
+      for (const f of context.features) {
+        const d = path(f as Feature) ?? "";
+        if (f.properties.kind === "sea") seaDs.push(d);
+        else neighbourDs.push(d);
+      }
+      const neighbours = rasterizePaths(neighbourDs, gw, gh);
+      const sea = rasterizePaths(seaDs, gw, gh);
+
+      // Land names avoid the province + sea; sea names avoid all land.
+      return placeLabels(
+        { land: orMasks(target, sea), sea: orMasks(target, neighbours) },
+        seeds,
+      );
+    }, [context, projected.projection, shapes, map.id]);
 
     const { svgRef, transformCss, style, handlers, setTransform } = usePanZoom({
       enabled: panZoom && interactive && !isAnimating,
@@ -331,8 +352,8 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
       onTap: onPick,
     });
 
-    // Track the SVG's rendered pixel size so labelSize can compensate on small
-    // or portrait screens (scale < 0.5) without affecting desktop rendering.
+    // Track the SVG's rendered pixel size so the label readability floor
+    // (LABEL_FLOOR_PX) can hide names too small to read on the current screen.
     useEffect(() => {
       const el = svgRef.current;
       if (!el) return;
@@ -497,25 +518,34 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
           </g>
 
           {/* Outside-only context labels (neighbour / country / sea), in an
-              engraved script pinned to the map: sized in viewBox units so they
-              scale with the terrain as you zoom (not held at a fixed on-screen
-              size). Never inside the target province — see the bake. */}
-          {drawn.contextLabels.length > 0 && (
+              engraved script pinned to the map: placed in the free space around
+              the province (never on it), font maximised to the gap and rotated
+              90° where a tall gap fits it bigger. Sized in viewBox units so they
+              scale with the terrain as you zoom. A physical-pixel floor hides any
+              label too small to read on the current screen. */}
+          {placedLabels.length > 0 && (
             <g className="context-labels" pointerEvents="none">
-              {drawn.contextLabels.map((l) => (
-                <text
-                  key={l.key}
-                  x={l.x}
-                  y={l.y}
-                  className={`context-label context-label--${l.kind} ${l.nick ? "context-label--nick" : ""}`}
-                  style={{
-                    fontSize: l.fontSize,
-                    strokeWidth: 4,
-                  }}
-                >
-                  {l.name}
-                </text>
-              ))}
+              {placedLabels.flatMap((l) => {
+                const s = svgScale > 0 ? svgScale : 1;
+                if (l.fontVB * s < LABEL_FLOOR_PX[l.kind]) return [];
+                return [
+                  <text
+                    key={l.key}
+                    x={l.x}
+                    y={l.y}
+                    transform={
+                      l.angle ? `rotate(${l.angle} ${l.x} ${l.y})` : undefined
+                    }
+                    className={`context-label context-label--${l.kind} ${l.nick ? "context-label--nick" : ""}`}
+                    style={{
+                      fontSize: l.fontVB,
+                      strokeWidth: 4,
+                    }}
+                  >
+                    {l.name}
+                  </text>,
+                ];
+              })}
             </g>
           )}
         </g>
