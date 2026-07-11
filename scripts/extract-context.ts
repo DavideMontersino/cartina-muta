@@ -322,15 +322,16 @@ async function bakeProvince(
 }
 
 async function main() {
-  const arg = process.argv[2];
+  // Optional province ids to bake (one or more); no args → every province.
+  const args = process.argv.slice(2);
   const overview = JSON.parse(
     readFileSync(resolve(MAPS_DIR, "overview.json"), "utf8"),
   ).features as NeFeature[];
   const countries = await loadNaturalEarth("ne_10m_admin_0_countries.geojson");
   const seas = await loadNaturalEarth("ne_10m_geography_marine_polys.geojson");
 
-  const provinces: string[] = arg
-    ? [arg]
+  const provinces: string[] = args.length
+    ? args
     : (
         JSON.parse(
           readFileSync(resolve(MAPS_DIR, "provinces.json"), "utf8"),
