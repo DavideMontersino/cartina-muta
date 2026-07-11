@@ -253,6 +253,7 @@ describe("reducer — energy mode", () => {
     expect(s.status[target]).toBe("found");
     expect(s.scoreBreakdown).toEqual({
       base: ENERGY_CONFIG.attemptBase[0],
+      correctStreak: 1,
       streakMultiplier: 1,
       speedBonus: ENERGY_CONFIG.speedBonus,
       firstTryBonus: ENERGY_CONFIG.firstTryBullseyeBonus,
@@ -339,6 +340,21 @@ describe("reducer — energy mode", () => {
     }
     expect(s.correctStreak).toBe(ENERGY_CONFIG.streak.doubleAt);
     expect(s.scoreBreakdown?.streakMultiplier).toBe(2);
+  });
+
+  it("reports the real streak length alongside the capped multiplier", () => {
+    // The multiplier caps at 3 (streak >= tripleAt), but the breakdown must still
+    // carry the true run length so the UI can show "serie di N" instead of a
+    // number that looks stuck at 3. Regression for the confusing "× 3 streak".
+    let s = createGame(startEnergy(10), noWeightRng);
+    const runLength = ENERGY_CONFIG.streak.tripleAt + 2; // well past the cap
+    for (let i = 0; i < runLength; i++) {
+      const target = currentTarget(s) as number;
+      s = reducer(s, { type: "guess", index: target, roundElapsedMs: 1000 });
+    }
+    expect(s.correctStreak).toBe(runLength);
+    expect(s.scoreBreakdown?.correctStreak).toBe(runLength);
+    expect(s.scoreBreakdown?.streakMultiplier).toBe(3); // capped
   });
 
   it("ends the run when a wrong tap drains energy to zero", () => {
