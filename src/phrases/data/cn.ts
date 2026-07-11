@@ -15,21 +15,22 @@ export const cnPhrases: PartialPhraseSet = {
   correct: [
     "Brau, hai indovinato subito!",
     "Preciso come un vero cuneese: brau!",
-    "Sviciu che non sei altro, l'hai beccata al volo!",
+    "Sviciu, l'hai beccata al volo!",
     "Grande, manco un vitun ci arrivava così in fretta!",
-    "Brau davvero, sei un fenomeno del bagna cauda!",
+    "Brau davvero, sei un fenomeno da bagna cauda!",
     "Precisione da Provincia Granda: dritto al comune giusto!",
   ],
   wrong: [
-    "Ma vaiu, sei un balengu o cosa?",
-    "Vitun, quella non è manco vicina!",
+    "Sei un balengu o cosa?",
+    "Ma ti incali a dare queste risposte?",
     "Òmmi òmmi, che pasticcio.",
     "Sviciu... ma mica tanto, oggi!",
     "Madoi, ma dove hai guardato?",
-    "Blagor! Fai il gradasso ma la cartina ti frega.",
+    "Fai il gradasso ma la cartina ti frega.",
     "Gadan, mettici più impegno!",
     "Tüpin vuoto, altro che comune giusto!",
     "Crin catòlic, parli bene ma clicchi male!",
+    "Pelacurdin!"
   ],
   streakCorrect3: [
     "Tre di fila, brau davvero!",
