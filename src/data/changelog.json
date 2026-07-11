@@ -1,5 +1,10 @@
 [
   {
+    "date": "2026-07-12",
+    "sha": "3359fd2cc37615cac881f1dae29f463f3b78fbc9",
+    "description": "Le etichette dei nomi attorno alla mappa ora possono essere inclinate in diagonale, non solo dritte o verticali: così riempiono meglio gli spazi stretti e obliqui (come lungo una costa) e il testo può essere più grande."
+  },
+  {
     "date": "2026-07-11",
     "sha": "a6ac94d913777aba382e37646fa0e2afc6596da9",
     "description": "I nomi di mari, regioni vicine e stati confinanti ora vengono disposti negli spazi liberi attorno alla provincia: mai sopra la mappa da indovinare, senza sovrapporsi tra loro, con il testo ingrandito il più possibile e ruotato quando serve. I nomi dei mari restano sull'acqua e quelli delle terre sulla terraferma; se non c'è spazio leggibile, l'etichetta non viene mostrata."
