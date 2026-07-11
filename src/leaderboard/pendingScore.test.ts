@@ -39,9 +39,11 @@ function makeDb(): DatabaseSync {
 }
 
 function insertUser(db: DatabaseSync, id: string, name: string, email: string) {
+  // Use anonymous ? params — node:sqlite v24+ doesn't support positional args
+  // with ?NNN numbered parameters (only named-object or anonymous-? binding works).
   db.prepare(
     `INSERT INTO "user" ("id","name","email","emailVerified","createdAt","updatedAt")
-     VALUES (?1,?2,?3,1,'2026-01-01','2026-01-01')`,
+     VALUES (?,?,?,1,'2026-01-01','2026-01-01')`,
   ).run(id, name, email);
 }
 
@@ -53,30 +55,31 @@ function insertPending(
   overrides: Partial<{ found: number; score: number }> = {},
 ) {
   const id = `pending-${++pid}`;
-  db.prepare(INSERT_PENDING_SCORE_SQL).run(
-    id,
-    normalizeEmail(email),
-    "cn",
-    "energy",
-    null,
-    "normal",
-    247,
-    overrides.found ?? 70,
-    0,
-    0,
-    637_000,
-    overrides.score ?? 14_020,
-    "[]",
-    createdAt,
-  );
+  // ?NNN params require named-object binding in node:sqlite (Node 24+).
+  db.prepare(INSERT_PENDING_SCORE_SQL).run({
+    "1": id,
+    "2": normalizeEmail(email),
+    "3": "cn",
+    "4": "energy",
+    "5": null,
+    "6": "normal",
+    "7": 247,
+    "8": overrides.found ?? 70,
+    "9": 0,
+    "10": 0,
+    "11": 637_000,
+    "12": overrides.score ?? 14_020,
+    "13": "[]",
+    "14": createdAt,
+  });
   return id;
 }
 
 function claim(db: DatabaseSync, userId: string, email: string, now: number) {
   const inserted = db
     .prepare(CLAIM_INSERT_SQL)
-    .run(userId, email, now - PENDING_SCORE_TTL_MS);
-  db.prepare(CLAIM_DELETE_SQL).run(email);
+    .run({ "1": userId, "2": email, "3": now - PENDING_SCORE_TTL_MS });
+  db.prepare(CLAIM_DELETE_SQL).run({ "1": email });
   return Number(inserted.changes);
 }
 
@@ -177,7 +180,9 @@ describe("pending score maintenance SQL", () => {
     const db = makeDb();
     insertPending(db, "a@example.com", now);
     insertPending(db, "b@example.com", now - PENDING_SCORE_TTL_MS - 1);
-    db.prepare(DELETE_EXPIRED_PENDING_SQL).run(now - PENDING_SCORE_TTL_MS);
+    db.prepare(DELETE_EXPIRED_PENDING_SQL).run({
+      "1": now - PENDING_SCORE_TTL_MS,
+    });
     expect(pendingCount(db)).toBe(1);
   });
 
@@ -187,10 +192,10 @@ describe("pending score maintenance SQL", () => {
     for (let i = 0; i < MAX_PENDING_PER_EMAIL + 5; i++) {
       insertPending(db, email, now + i);
     }
-    db.prepare(CAP_PENDING_PER_EMAIL_SQL).run(
-      normalizeEmail(email),
-      MAX_PENDING_PER_EMAIL,
-    );
+    db.prepare(CAP_PENDING_PER_EMAIL_SQL).run({
+      "1": normalizeEmail(email),
+      "2": MAX_PENDING_PER_EMAIL,
+    });
     expect(pendingCount(db)).toBe(MAX_PENDING_PER_EMAIL);
     // The newest row (largest createdAt) survives the cap.
     const newest = db

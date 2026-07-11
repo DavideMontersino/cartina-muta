@@ -114,11 +114,8 @@ export function inRings(pt: Position, rings: Ring[]): boolean {
   return rings.some((r) => pointInRing(pt, r));
 }
 
-/** Pick the largest ring's centroid as a label anchor, if outside the target. */
-export function labelAnchor(
-  rings: Ring[],
-  targetRings: Ring[],
-): [number, number] | null {
+/** Centroid of the largest (by area) ring in a set, or null if rings is empty. */
+export function largestRingCentroid(rings: Ring[]): [number, number] | null {
   let best: Ring | null = null;
   let bestArea = 0;
   for (const r of rings) {
@@ -126,14 +123,22 @@ export function labelAnchor(
     for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
       a += r[j][0] * r[i][1] - r[i][0] * r[j][1];
     }
-    a = Math.abs(a);
-    if (a > bestArea) {
-      bestArea = a;
+    if (Math.abs(a) > bestArea) {
+      bestArea = Math.abs(a);
       best = r;
     }
   }
   if (!best) return null;
   const c = ringCentroid(best);
+  return c ? [c[0], c[1]] : null;
+}
+
+/** Pick the largest ring's centroid as a label anchor, if outside the target. */
+export function labelAnchor(
+  rings: Ring[],
+  targetRings: Ring[],
+): [number, number] | null {
+  const c = largestRingCentroid(rings);
   if (!c || inRings(c, targetRings)) return null;
   return [roundTo(c[0], PRECISION), roundTo(c[1], PRECISION)];
 }
@@ -274,6 +279,15 @@ async function bakeProvince(
   const target = overview.find((f) => f.properties.id === id);
   if (!target) throw new Error(`no overview feature for ${id}`);
   const targetRings = outerRings(target.geometry);
+  // Centroid of the target province — used to nudge neighbour labels away from
+  // the clip bbox edge so they don't land under the canvas clip boundary.
+  const targetCentroid = largestRingCentroid(targetRings);
+  const bboxW = bbox[2] - bbox[0];
+  const bboxH = bbox[3] - bbox[1];
+  // Fraction of bbox size that defines the "near edge" danger zone.
+  // 0.15 ≈ just inside the CONTEXT_MARGIN band that was added around the province.
+  const EDGE_FRAC = 0.15;
+  const NUDGE = 0.4;
 
   const features: ContextShape[] = [];
   const labels: ContextLabel[] = [];
@@ -288,7 +302,23 @@ async function bakeProvince(
       properties: { kind: "province", name: f.properties.name },
       geometry: { type: "MultiPolygon", coordinates: rings.map((r) => [r]) },
     });
-    const at = labelAnchor(rings, targetRings);
+    let at = labelAnchor(rings, targetRings);
+    if (at && targetCentroid) {
+      const [lon, lat] = at;
+      const nearEdge =
+        lon < bbox[0] + bboxW * EDGE_FRAC ||
+        lon > bbox[2] - bboxW * EDGE_FRAC ||
+        lat < bbox[1] + bboxH * EDGE_FRAC ||
+        lat > bbox[3] - bboxH * EDGE_FRAC;
+      if (nearEdge) {
+        const nudged: [number, number] = [
+          roundTo(lon + NUDGE * (targetCentroid[0] - lon), PRECISION),
+          roundTo(lat + NUDGE * (targetCentroid[1] - lat), PRECISION),
+        ];
+        // Only apply if the nudged point stays outside the target province.
+        if (!inRings(nudged, targetRings)) at = nudged;
+      }
+    }
     if (at) labels.push({ name: f.properties.name, kind: "province", at });
   }
 

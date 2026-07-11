@@ -4,6 +4,7 @@ import {
   clipAndSimplify,
   inRings,
   labelAnchor,
+  largestRingCentroid,
   outerRings,
 } from "./extract-context";
 import type { Bbox } from "./lib/geo";
@@ -87,6 +88,29 @@ describe("inRings", () => {
   it("detects inside vs outside", () => {
     expect(inRings([5, 5], rings)).toBe(true);
     expect(inRings([15, 5], rings)).toBe(false);
+  });
+});
+
+describe("largestRingCentroid", () => {
+  it("returns the centroid of the single ring when given one", () => {
+    const rings = [square(0, 0, 10, 10).coordinates[0]] as Position[][];
+    const c = largestRingCentroid(rings);
+    expect(c).not.toBeNull();
+    expect(c?.[0]).toBeCloseTo(5, 3);
+    expect(c?.[1]).toBeCloseTo(5, 3);
+  });
+
+  it("picks the larger ring when given multiple", () => {
+    const big = square(0, 0, 10, 10).coordinates[0] as Position[];
+    const small = square(20, 20, 21, 21).coordinates[0] as Position[];
+    const c = largestRingCentroid([small, big]);
+    // centroid should be the big square's centre, not the small one
+    expect(c?.[0]).toBeCloseTo(5, 3);
+    expect(c?.[1]).toBeCloseTo(5, 3);
+  });
+
+  it("returns null for an empty array", () => {
+    expect(largestRingCentroid([])).toBeNull();
   });
 });
 

@@ -59,11 +59,16 @@ const CENTER_X = VIEW_W / 2;
 const CENTER_Y = VIEW_H / 2;
 
 /**
- * Size (viewBox units) for the context labels, by kind. Fixed in map space, so
- * a label scales with the terrain as you zoom (pinned to its geographic anchor),
- * rather than being held at a constant on-screen size.
+ * Target physical pixel sizes for context labels. On small / portrait screens
+ * the SVG shrinks so viewBox-unit sizes become too tiny; the ResizeObserver in
+ * MapCanvas converts these physical targets back to viewBox units and clamps to
+ * reasonable floors/ceilings so the labels always feel right-sized for the map.
  */
-const LABEL_SIZE = { country: 36, sea: 30, province: 28 } as const;
+const LABEL_TARGET_PX = { country: 18, sea: 15, province: 14 } as const;
+/** Floor: the label never goes below this in viewBox units (matches the old fixed size). */
+const LABEL_MIN_VB = { country: 36, sea: 30, province: 28 } as const;
+/** Ceiling: prevents labels from swamping the canvas on very small screens. */
+const LABEL_MAX_VB = { country: 54, sea: 46, province: 42 } as const;
 const CONTEXT_ORDER = { sea: 0, province: 1, country: 2 } as const;
 
 /** Region of each province by name, for tinting neighbours by region. */
@@ -192,6 +197,31 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
     const projected = useMemo(() => projectMap(map), [map]);
     const shapes = projected.features;
     const [hover, setHover] = useState<number | null>(null);
+    // 0 = not yet measured; replaced on first ResizeObserver tick.
+    const [svgScale, setSvgScale] = useState(0);
+
+    // viewBox-unit font sizes that keep labels physically readable at any scale.
+    // At scale ≥ 0.5 the formula yields values at or below the MIN floor, so the
+    // labels look identical to the old fixed sizes on desktop. The sizes only grow
+    // on small / portrait screens where scale < 0.5, smoothly closing the gap
+    // between "map shrank but text stayed tiny" and "readable on every device".
+    const labelSize = useMemo(() => {
+      const s = svgScale > 0 ? svgScale : 1;
+      return {
+        country: Math.min(
+          LABEL_MAX_VB.country,
+          Math.max(LABEL_MIN_VB.country, LABEL_TARGET_PX.country / s),
+        ),
+        sea: Math.min(
+          LABEL_MAX_VB.sea,
+          Math.max(LABEL_MIN_VB.sea, LABEL_TARGET_PX.sea / s),
+        ),
+        province: Math.min(
+          LABEL_MAX_VB.province,
+          Math.max(LABEL_MIN_VB.province, LABEL_TARGET_PX.province / s),
+        ),
+      };
+    }, [svgScale]);
 
     const { context, relief, water } = useLayers(map.id, terrain);
     const outlineGeom = useProvinceOutline(map.id, hideBorders);
@@ -238,14 +268,25 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
         const p = project(l.at);
         if (!p) return [];
         const nick = nicknameFor(l.name, map.id);
+        const name = nick ?? l.name;
+        const fontSize = labelSize[l.kind];
+        // text-anchor: middle; dominant-baseline: middle — estimate the rendered
+        // half-extents so we can clamp the anchor before it lands under the
+        // SVG overflow:hidden boundary. 0.35 × fontSize is a conservative
+        // per-character width for the italic map font; 0.55 × fontSize is the
+        // cap-half-height. PAD adds a small breathing room at each edge.
+        const halfW = Math.ceil(name.length * fontSize * 0.35);
+        const halfH = Math.ceil(fontSize * 0.55);
+        const PAD = 6;
         return [
           {
             key: `lbl-${i}`,
             kind: l.kind,
-            name: nick ?? l.name,
+            name,
             nick: nick !== null,
-            x: p[0],
-            y: p[1],
+            fontSize,
+            x: Math.max(halfW + PAD, Math.min(VIEW_W - halfW - PAD, p[0])),
+            y: Math.max(halfH + PAD, Math.min(VIEW_H - halfH - PAD, p[1])),
           },
         ];
       });
@@ -272,7 +313,15 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
         : "";
 
       return { contextShapes, contextLabels, bands, waterways, outline };
-    }, [context, relief, water, outlineGeom, projected.projection, map.id]);
+    }, [
+      context,
+      relief,
+      water,
+      outlineGeom,
+      projected.projection,
+      map.id,
+      labelSize,
+    ]);
 
     const { svgRef, transformCss, style, handlers, setTransform } = usePanZoom({
       enabled: panZoom && interactive && !isAnimating,
@@ -281,6 +330,21 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
       bounds: mapBounds,
       onTap: onPick,
     });
+
+    // Track the SVG's rendered pixel size so labelSize can compensate on small
+    // or portrait screens (scale < 0.5) without affecting desktop rendering.
+    useEffect(() => {
+      const el = svgRef.current;
+      if (!el) return;
+      const ro = new ResizeObserver((entries) => {
+        const { width, height } = entries[0].contentRect;
+        if (width > 0 && height > 0) {
+          setSvgScale(Math.min(width / VIEW_W, height / VIEW_H));
+        }
+      });
+      ro.observe(el);
+      return () => ro.disconnect();
+    }, [svgRef]);
 
     useImperativeHandle(ref, () => ({
       flyTo: (cx: number, cy: number, scale: number) => {
@@ -445,7 +509,7 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
                   y={l.y}
                   className={`context-label context-label--${l.kind} ${l.nick ? "context-label--nick" : ""}`}
                   style={{
-                    fontSize: LABEL_SIZE[l.kind],
+                    fontSize: l.fontSize,
                     strokeWidth: 4,
                   }}
                 >
