@@ -128,14 +128,13 @@ export const nationalLabelPools: Record<string, string[]> = {
 /** Province-specific perspectives, keyed by 2-letter province id then label key. */
 export const provinceLabelPools: Record<string, Record<string, string[]>> = {
   cn: {
-    FRANCE: ["Supermercati economici d'oltreconfine", "Sciatori scarsi", "Caffè annacquati"],
-    TORINO: [
-      "Finti piemontesi",
-      "Università obbligatoria",
-      "Snob da aperitivo",
-      "Traffico e aria finta",
-      "Sanguisughe regionali",
+    FRANCE: [
+      "Supermercati economici d'oltreconfine",
+      "Sciatori scarsi",
+      "Caffè annacquati",
+      "Boriosi suoni nasali",
     ],
+    TORINO: ["Finti piemontesi", "Studenti fuoricorso", "Snob da aperitivo"],
     ASTI: ["Finti esperti di vino", "Rivali del Palio", "Spumante annacquato"],
     SAVONA: [
       "Mare inquinato dell'infanzia",
