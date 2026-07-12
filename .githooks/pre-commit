@@ -1,0 +1,18 @@
+#!/bin/sh
+# Auto-format staged files with Biome before committing, so formatting drift
+# never reaches CI (CI runs `biome check` over the whole tree and fails on any
+# unformatted file). Formats + safe-fixes the staged files, re-stages them, and
+# blocks the commit if Biome reports an error it can't fix automatically.
+BIOME="./node_modules/.bin/biome"
+[ -x "$BIOME" ] || exit 0 # Biome not installed yet — don't block the commit.
+
+FILES=$(git diff --cached --name-only --diff-filter=ACM |
+  grep -E '\.(ts|tsx|js|jsx|json|jsonc|css)$' || true)
+[ -z "$FILES" ] && exit 0
+
+# shellcheck disable=SC2086
+"$BIOME" check --write --no-errors-on-unmatched $FILES
+STATUS=$?
+# shellcheck disable=SC2086
+git add $FILES
+exit $STATUS
