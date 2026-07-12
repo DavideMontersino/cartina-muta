@@ -1,6 +1,11 @@
 [
   {
     "date": "2026-07-12",
+    "sha": "e02f8a6025aca05cadc3eb472305fe74f819d558",
+    "description": "I nomi dei mari ora compaiono anche quando in mappa si vede solo un piccolo tratto di mare vicino alla costa, e le zone confinanti piccole ma visibili mostrano un nome più piccolo invece di sparire del tutto."
+  },
+  {
+    "date": "2026-07-12",
     "sha": "a941e2add3b5bf5c66c9d50909679d0db2bf1b9c",
     "description": "Ogni nome (province vicine, mari, stati confinanti) ora resta sulla propria zona: se una zona è fuori dalla mappa o troppo piccola per contenere il nome, l'etichetta non viene mostrata invece di finire sulla provincia sbagliata."
   },
