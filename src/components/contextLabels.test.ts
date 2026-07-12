@@ -23,8 +23,13 @@ function provinceGrid(
   return grid;
 }
 
-/** Same obstacle for both surfaces — the common case in these tests. */
-const both = (g: Uint8Array) => ({ land: g, sea: g });
+/** The complement of a grid: 1 where `g` is 0. Used to turn an obstacle mask
+ *  into a `within` (allowed) mask for the region-pinning tests. */
+function invert(g: Uint8Array): Uint8Array {
+  const out = new Uint8Array(g.length);
+  for (let i = 0; i < g.length; i++) out[i] = g[i] ? 0 : 1;
+  return out;
+}
 
 type Placed = {
   x: number;
@@ -87,16 +92,44 @@ function boxClearOfProvince(
 describe("placeLabels", () => {
   const cfg = DEFAULT_CONFIG;
 
-  it("never places a label over the target province", () => {
+  it("never places a label over the target province (avoid)", () => {
     const grid = provinceGrid(cfg);
-    // Anchors on all four sides of the province.
+    // Anchors on all four sides; each label must stay off the central province.
     const seeds: LabelSeed[] = [
-      { name: "Nord", kind: "province", nick: false, seedX: 500, seedY: 60 },
-      { name: "Sud", kind: "province", nick: false, seedX: 500, seedY: 740 },
-      { name: "Ovest", kind: "province", nick: false, seedX: 60, seedY: 400 },
-      { name: "Est", kind: "province", nick: false, seedX: 940, seedY: 400 },
+      {
+        name: "Nord",
+        kind: "country",
+        nick: false,
+        seedX: 500,
+        seedY: 60,
+        avoid: grid,
+      },
+      {
+        name: "Sud",
+        kind: "country",
+        nick: false,
+        seedX: 500,
+        seedY: 740,
+        avoid: grid,
+      },
+      {
+        name: "Ovest",
+        kind: "country",
+        nick: false,
+        seedX: 60,
+        seedY: 400,
+        avoid: grid,
+      },
+      {
+        name: "Est",
+        kind: "country",
+        nick: false,
+        seedX: 940,
+        seedY: 400,
+        avoid: grid,
+      },
     ];
-    const placed = placeLabels(both(grid), seeds);
+    const placed = placeLabels(seeds);
     expect(placed.length).toBeGreaterThan(0);
     for (const l of placed) {
       expect(boxClearOfProvince(cfg, grid, l)).toBe(true);
@@ -106,10 +139,25 @@ describe("placeLabels", () => {
   it("keeps every placed label inside the viewBox", () => {
     const grid = provinceGrid(cfg);
     const seeds: LabelSeed[] = [
-      { name: "Francia", kind: "country", nick: false, seedX: 40, seedY: 40 },
-      { name: "Mare", kind: "sea", nick: false, seedX: 960, seedY: 760 },
+      {
+        name: "Francia",
+        kind: "country",
+        nick: false,
+        seedX: 40,
+        seedY: 40,
+        avoid: grid,
+      },
+      {
+        name: "Mare",
+        kind: "sea",
+        nick: false,
+        seedX: 960,
+        seedY: 760,
+        anchor: invert(grid),
+        avoid: grid,
+      },
     ];
-    for (const l of placeLabels(both(grid), seeds)) {
+    for (const l of placeLabels(seeds)) {
       for (const [x, y] of corners(cfg, l)) {
         expect(x).toBeGreaterThanOrEqual(0);
         expect(x).toBeLessThanOrEqual(cfg.viewW);
@@ -125,13 +173,14 @@ describe("placeLabels", () => {
     const seeds: LabelSeed[] = [
       {
         name: "Piemonte",
-        kind: "province",
+        kind: "country",
         nick: false,
         seedX: 60,
         seedY: 400,
+        avoid: grid,
       },
     ];
-    const placed = placeLabels(both(grid), seeds);
+    const placed = placeLabels(seeds);
     expect(placed).toHaveLength(1);
     // A near-vertical orientation (not horizontal) is needed to fit the column.
     expect(Math.abs(placed[0].angle)).toBeGreaterThanOrEqual(60);
@@ -159,13 +208,14 @@ describe("placeLabels", () => {
     const seeds: LabelSeed[] = [
       {
         name: "Costiera",
-        kind: "province",
+        kind: "country",
         nick: false,
         seedX: cx0,
         seedY: cy0,
+        avoid: grid,
       },
     ];
-    const placed = placeLabels(both(grid), seeds);
+    const placed = placeLabels(seeds);
     expect(placed).toHaveLength(1);
     // The (1,1) direction is +45° in SVG's y-down coordinates.
     expect(placed[0].angle).toBeGreaterThan(20);
@@ -174,22 +224,68 @@ describe("placeLabels", () => {
   });
 
   it("drops a label when there is no room near its anchor", () => {
-    // Province covers everything but a sliver too thin for min font.
+    // Obstacle covers everything but a sliver too thin for min font.
     const grid = provinceGrid(cfg, { x0: 0.02, y0: 0.02, x1: 0.99, y1: 0.99 });
     const seeds: LabelSeed[] = [
-      { name: "Cuneo", kind: "province", nick: false, seedX: 500, seedY: 400 },
+      {
+        name: "Cuneo",
+        kind: "country",
+        nick: false,
+        seedX: 500,
+        seedY: 400,
+        avoid: grid,
+      },
     ];
-    expect(placeLabels(both(grid), seeds)).toHaveLength(0);
+    expect(placeLabels(seeds)).toHaveLength(0);
+  });
+
+  it("pins a label inside its own region and drops it when the region is absent", () => {
+    // Region A is the right 30%; region B is nowhere on screen (empty mask).
+    const regionA = invert(provinceGrid(cfg, { x0: 0, y0: 0, x1: 0.7, y1: 1 }));
+    const regionB = new Uint8Array(cfg.gw * cfg.gh);
+    const seeds: LabelSeed[] = [
+      {
+        name: "Presente",
+        kind: "province",
+        nick: false,
+        seedX: 850,
+        seedY: 400,
+        anchor: regionA,
+        avoid: invert(regionA),
+      },
+      {
+        name: "Assente",
+        kind: "province",
+        nick: false,
+        seedX: 850,
+        seedY: 400,
+        anchor: regionB,
+        avoid: invert(regionB),
+      },
+    ];
+    const placed = placeLabels(seeds);
+    // Only the region that's on screen gets a label; it sits inside that region.
+    expect(placed.map((l) => l.name)).toEqual(["Presente"]);
+    expect(boxClearOfProvince(cfg, invert(regionA), placed[0])).toBe(true);
+    expect(placed[0].x).toBeGreaterThan(0.7 * cfg.viewW);
   });
 
   it("keeps a sea label off the land even when its anchor is near land", () => {
-    // Land fills the left 70%; the sea is the right 30%. A sea label seeded on
-    // the land edge must still land on water (the `sea` mask blocks all land).
+    // Land fills the left 70%; the sea (anchor) is the right 30%. A sea label
+    // seeded on the land edge must still land on water.
     const land = provinceGrid(cfg, { x0: 0, y0: 0, x1: 0.7, y1: 1 });
     const seeds: LabelSeed[] = [
-      { name: "Mar Ligure", kind: "sea", nick: false, seedX: 680, seedY: 400 },
+      {
+        name: "Mar Ligure",
+        kind: "sea",
+        nick: false,
+        seedX: 680,
+        seedY: 400,
+        anchor: invert(land),
+        avoid: land,
+      },
     ];
-    const placed = placeLabels({ land, sea: land }, seeds);
+    const placed = placeLabels(seeds);
     expect(placed).toHaveLength(1);
     // Its whole box must be clear of the land mask.
     expect(boxClearOfProvince(cfg, land, placed[0])).toBe(true);
@@ -199,10 +295,24 @@ describe("placeLabels", () => {
   it("does not overlap two labels competing for the same side", () => {
     const grid = provinceGrid(cfg);
     const seeds: LabelSeed[] = [
-      { name: "Uno", kind: "province", nick: false, seedX: 500, seedY: 70 },
-      { name: "Due", kind: "province", nick: false, seedX: 520, seedY: 80 },
+      {
+        name: "Uno",
+        kind: "country",
+        nick: false,
+        seedX: 500,
+        seedY: 70,
+        avoid: grid,
+      },
+      {
+        name: "Due",
+        kind: "country",
+        nick: false,
+        seedX: 520,
+        seedY: 80,
+        avoid: grid,
+      },
     ];
-    const placed = placeLabels(both(grid), seeds);
+    const placed = placeLabels(seeds);
     // Both should land somewhere legal, clear of the province and each other.
     for (const l of placed) expect(boxClearOfProvince(cfg, grid, l)).toBe(true);
     if (placed.length === 2) {

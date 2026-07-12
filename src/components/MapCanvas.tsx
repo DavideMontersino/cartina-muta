@@ -123,6 +123,13 @@ function orMasks(a: Uint8Array, b: Uint8Array): Uint8Array {
   return out;
 }
 
+/** `a` with `b`'s cells cleared (a AND NOT b) — e.g. "all regions except this one". */
+function andNotMasks(a: Uint8Array, b: Uint8Array): Uint8Array {
+  const out = new Uint8Array(a.length);
+  for (let i = 0; i < a.length; i++) out[i] = a[i] && !b[i] ? 1 : 0;
+  return out;
+}
+
 interface Layers {
   context: ContextCollection | null;
   relief: ReliefCollection | null;
@@ -296,52 +303,72 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
 
     // Free-space placement for the outside-only context labels. Scale-independent
     // (the viewBox letterboxes, so the surrounding land shown is the same at any
-    // aspect/orientation) and computed from the projected province rasterised as
-    // an obstacle, so no label ever lands on the province being played. Recomputed
+    // aspect/orientation). Each label is pinned to its own region's on-screen
+    // polygon, so a neighbour never lands on the wrong province — and a region
+    // that isn't visible (or is too small) simply drops its label. Recomputed
     // only when the map or its context data changes — not on pan/zoom or resize.
     const placedLabels = useMemo(() => {
       if (typeof document === "undefined" || !context?.labels?.length)
         return [];
       const project = projected.projection;
       const path = geoPath(project);
-      const seeds: LabelSeed[] = context.labels.flatMap((l) => {
-        const p = project(l.at);
-        if (!p) return [];
-        const nick = nicknameFor(l.name, map.id);
-        return [
-          {
-            name: nick ?? l.name,
-            kind: l.kind,
-            nick: nick !== null,
-            seedX: p[0],
-            seedY: p[1],
-          },
-        ];
-      });
-      if (!seeds.length) return [];
-
       const { gw, gh } = DEFAULT_CONFIG;
-      // Rasterise the three surfaces the labels care about.
+
+      // The target province — the map being played — plus each surrounding
+      // region rasterised into its own occupancy grid (1 = covered).
       const target = rasterizePaths(
         shapes.map((s) => s.d),
         gw,
         gh,
       );
-      const neighbourDs: string[] = [];
+      const provinceMask = new Map<string, Uint8Array>();
       const seaDs: string[] = [];
+      const neighbourDs: string[] = [];
       for (const f of context.features) {
         const d = path(f as Feature) ?? "";
-        if (f.properties.kind === "sea") seaDs.push(d);
-        else neighbourDs.push(d);
+        if (!d) continue;
+        if (f.properties.kind === "sea") {
+          seaDs.push(d);
+        } else {
+          neighbourDs.push(d);
+          provinceMask.set(f.properties.name, rasterizePaths([d], gw, gh));
+        }
       }
-      const neighbours = rasterizePaths(neighbourDs, gw, gh);
       const sea = rasterizePaths(seaDs, gw, gh);
+      const neighbours = rasterizePaths(neighbourDs, gw, gh);
+      const land = orMasks(target, neighbours);
+      // Every known surface. A country has no shape, so it's pinned negatively:
+      // kept off all of this, leaving the foreign parchment near its anchor.
+      const mapped = orMasks(land, sea);
 
-      // Land names avoid the province + sea; sea names avoid all land.
-      return placeLabels(
-        { land: orMasks(target, sea), sea: orMasks(target, neighbours) },
-        seeds,
-      );
+      const seeds: LabelSeed[] = context.labels.flatMap((l) => {
+        const p = project(l.at);
+        if (!p) return [];
+        const nick = nicknameFor(l.name, map.id);
+        const base = {
+          name: nick ?? l.name,
+          kind: l.kind,
+          nick: nick !== null,
+          seedX: p[0],
+          seedY: p[1],
+        };
+        // Sea: centre on water, box off all land.
+        if (l.kind === "sea") return [{ ...base, anchor: sea, avoid: land }];
+        // Country: no shape to pin — just keep it off every known surface.
+        if (l.kind === "country") return [{ ...base, avoid: mapped }];
+        // Neighbour province: centre on its own polygon, box off the played
+        // province, the sea, and every *other* region. Without its own mask
+        // (shouldn't happen), keep it off the played province + sea.
+        const own = provinceMask.get(l.name);
+        return [
+          own
+            ? { ...base, anchor: own, avoid: andNotMasks(mapped, own) }
+            : { ...base, avoid: orMasks(target, sea) },
+        ];
+      });
+      if (!seeds.length) return [];
+
+      return placeLabels(seeds);
     }, [context, projected.projection, shapes, map.id]);
 
     const { svgRef, transformCss, style, handlers, setTransform } = usePanZoom({

@@ -30,6 +30,21 @@ export interface LabelSeed {
   nick: boolean;
   seedX: number;
   seedY: number;
+  /**
+   * Cells the label's *centre* must fall inside (1 = allowed) — its own region
+   * on screen (this neighbour province's polygon, or the sea). Pins the name to
+   * its own area; when that area isn't visible, the label is dropped. The box may
+   * still extend past the region into blank margin, but never onto an `avoid`
+   * surface (the target, the sea, or another province).
+   */
+  anchor?: Uint8Array;
+  /**
+   * Cells the label's box must stay *outside* (1 = obstacle): the played
+   * province, the wrong surface, and every other region. For a foreign country —
+   * which has no baked shape to anchor to — this is the only constraint, keeping
+   * it off every known surface so it lands on the foreign parchment.
+   */
+  avoid?: Uint8Array;
 }
 
 /** A placed label: viewBox centre, rotation, and the maximised font size. */
@@ -258,26 +273,15 @@ function stampBox(grid: Uint8Array, b: OrientedBox, cfg: PlaceConfig): void {
 }
 
 /**
- * Per-kind "keep off" masks (1 = obstacle). Sea names must land on water, land
- * names (province / country) must land on ground — so each kind avoids the
- * opposite surface as well as the target province.
- */
-export interface ObstacleMasks {
-  /** Land labels avoid this: the target province ∪ the sea. */
-  land: Uint8Array;
-  /** Sea labels avoid this: all land (target province ∪ neighbours). */
-  sea: Uint8Array;
-}
-
-/**
- * Place every label in the largest free box near its anchor. Each kind routes
- * around its own obstacle mask (see {@link ObstacleMasks}) plus every label
- * already placed, so names never stack, never land on the province, and sea
- * names stay on water. Labels that can't fit `minFontVB` near their anchor are
- * dropped.
+ * Place every label in the largest free box near its anchor. Each label is
+ * pinned to its own region: its box centre must land on that region (`anchor`)
+ * and its box must avoid the played province, the wrong surface, and every other
+ * region (`avoid`) — so a neighbour never lands on the wrong province. A country,
+ * having no baked shape, is constrained by `avoid` alone. Boxes of labels already
+ * placed are added to the obstacle so names never stack. A label whose region
+ * isn't visible, or that can't fit a legible box, is dropped.
  */
 export function placeLabels(
-  masks: ObstacleMasks,
   seeds: LabelSeed[],
   config: Partial<PlaceConfig> = {},
 ): PlacedLabel[] {
@@ -287,16 +291,13 @@ export function placeLabels(
   const cellH = viewH / gh;
   const n = gw * gh;
 
-  const baseFor = (kind: ContextLabelKind) =>
-    kind === "sea" ? masks.sea : masks.land;
-
-  // Boxes of already-placed labels, unioned with each kind's base mask so no two
-  // labels ever overlap regardless of kind.
+  // Boxes of already-placed labels, added to each label's own constraint so no
+  // two labels ever overlap regardless of region.
   const placedMask = new Uint8Array(n);
   const obstacle = new Uint8Array(n);
-  const rebuild = (kind: ContextLabelKind): void => {
-    const base = baseFor(kind);
-    for (let i = 0; i < n; i++) obstacle[i] = base[i] | placedMask[i];
+  const rebuild = (seed: LabelSeed): void => {
+    const av = seed.avoid;
+    for (let i = 0; i < n; i++) obstacle[i] = placedMask[i] | (av ? av[i] : 0);
   };
 
   const ordered = seeds
@@ -312,8 +313,8 @@ export function placeLabels(
     const capHalf = 0.5 * lineHeight;
     const runHalf = 0.5 * charWidth * len;
     const kindMax = cfg.maxFontVB[seed.kind];
-    // Obstacle for this label = its surface mask ∪ every label already placed.
-    rebuild(seed.kind);
+    // Obstacle for this label = outside-its-region ∪ every label already placed.
+    rebuild(seed);
 
     // Keep the anchor addressable even when the neighbour projects off-box.
     const sx = clamp(seed.seedX, padVB, viewW - padVB);
@@ -327,10 +328,14 @@ export function placeLabels(
       score: number;
     } | null = null;
 
+    const anchorMask = seed.anchor;
     for (let gy = 0; gy < gh; gy += step) {
       const cy = (gy + 0.5) * cellH;
       for (let gx = 0; gx < gw; gx += step) {
-        if (obstacle[gy * gw + gx]) continue;
+        const at = gy * gw + gx;
+        if (obstacle[at]) continue;
+        // Pin the label's centre to its own region on screen.
+        if (anchorMask && !anchorMask[at]) continue;
         const cx = (gx + 0.5) * cellW;
         const dist = Math.hypot(cx - sx, cy - sy);
         if (dist > cfg.maxSeedDist) continue;
