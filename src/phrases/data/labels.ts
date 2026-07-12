@@ -130,26 +130,23 @@ export const provinceLabelPools: Record<string, Record<string, string[]>> = {
   cn: {
     FRANCE: [
       "Supermercati economici d'oltreconfine",
-      "Sciatori scarsi",
-      "Ladri di frontalieri",
-      "Confine dimenticato",
+      "Sciatori scarsi"
     ],
     TORINO: [
-      "Fighetti metropolitani",
-      "Ladri di tasse cuneesi",
+      "Finti piemontesi",
       "Università obbligatoria",
       "Snob da aperitivo",
       "Traffico e aria finta",
-      "Sanguisughe regionali",
+      "Sanguisughe regionali"
     ],
     ASTI: [
       "Finti esperti di vino",
       "Rivali del Palio",
-      "Spumante annacquato",
-      "Meno terra, più pretese",
+      "Spumante annacquato"
     ],
     SAVONA: [
       "Mare inquinato dell'infanzia",
+      "Terra di Ciaferlin",
       "Focaccia a prezzo raddoppiato (targa CN)",
       "Colonizzatori estivi",
       "La nostra spiaggia privata",
