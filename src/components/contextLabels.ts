@@ -101,8 +101,13 @@ export const DEFAULT_CONFIG: PlaceConfig = {
   // can't overflow, keeping it clear of the province rather than clipping onto it.
   charWidth: 0.68,
   lineHeight: 1.05,
-  padVB: 7,
-  minFontVB: 22,
+  padVB: 5,
+  // Geometric floor only — a label smaller than this isn't worth placing at all.
+  // The real "too small to read" decision is the scale-aware physical-pixel floor
+  // at render time (see LABEL_FLOOR_PX in MapCanvas), so this stays low: a small
+  // but genuinely-visible region (a coastal sea corner, a thin neighbour sliver)
+  // keeps a shrunk-to-fit label instead of being dropped outright.
+  minFontVB: 12,
   maxFontVB: { country: 84, sea: 74, province: 60 },
   maxSeedDist: 460,
   distPenalty: 0.05,
