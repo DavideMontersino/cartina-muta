@@ -32,11 +32,11 @@ export interface LabelSeed {
   seedY: number;
   /**
    * Shorter names to fall back to, in preference order, when `name` can't be
-   * placed legibly. Used for the flavour nicknames: the plain province name rides
+   * placed at all. Used for the flavour nicknames: the plain province name rides
    * along here, so a nickname too long for a small visible sliver degrades to the
-   * real name instead of dropping the label entirely. The first candidate that
-   * fits *comfortably* (see `comfortFontVB`) wins; otherwise the biggest-fitting
-   * one does; only if none fit at all is the label dropped.
+   * real name instead of dropping the label entirely. Candidates are tried in
+   * order and the first that fits (down to the minimum font) wins — the fallback
+   * is a rescue, not a preference — so only if none fit is the label dropped.
    */
   altNames?: string[];
   /**
@@ -128,13 +128,6 @@ export interface PlaceConfig {
    * tall-narrow gap (a coastal column) only fits them stood up.
    */
   readabilityBias: number;
-  /**
-   * Font (viewBox units) at or above which a name is "comfortably" placed: the
-   * first `altNames` candidate to reach it wins outright, so a nickname that fits
-   * well is never demoted to the plain name. Below it, the biggest-fitting
-   * candidate wins (the short fallback rescues an otherwise-dropped label).
-   */
-  comfortFontVB: number;
 }
 
 export const DEFAULT_CONFIG: PlaceConfig = {
@@ -162,7 +155,6 @@ export const DEFAULT_CONFIG: PlaceConfig = {
   softOverlapMax: 0.5,
   maxLines: 2,
   readabilityBias: 0.28,
-  comfortFontVB: 26,
 };
 
 /** Order labels are placed in — earlier kinds claim space first. */
@@ -536,9 +528,12 @@ export function placeLabels(
     const sx = clamp(seed.seedX, padVB, viewW - padVB);
     const sy = clamp(seed.seedY, padVB, viewH - padVB);
 
-    // Try the preferred name, then each shorter fallback. Take the first that
-    // fits *comfortably*; otherwise keep the biggest-fitting candidate so a short
-    // fallback can rescue a name that would otherwise drop.
+    // Try the preferred name first, shrunk all the way to the minimum font, and
+    // only fall through to a shorter fallback when it can't fit at all. This
+    // keeps the fuller/nickname label — even small — rather than swapping to the
+    // plain name whenever it happens to fit bigger; the short name is a rescue,
+    // not a preference. (`searchName` already returns the largest font ≥ minFont
+    // that fits, or null.)
     let chosen: {
       name: string;
       x: number;
@@ -560,17 +555,15 @@ export function placeLabels(
         cfg,
       );
       if (!found) continue;
-      if (!chosen || found.font > chosen.font) {
-        chosen = {
-          name: cand,
-          x: found.x,
-          y: found.y,
-          angle: readable(found.angle),
-          font: found.font,
-          shaped: found.shaped,
-        };
-      }
-      if (found.font >= cfg.comfortFontVB) break;
+      chosen = {
+        name: cand,
+        x: found.x,
+        y: found.y,
+        angle: readable(found.angle),
+        font: found.font,
+        shaped: found.shaped,
+      };
+      break;
     }
 
     if (!chosen) continue;

@@ -391,6 +391,39 @@ describe("placeLabels", () => {
     expect(boxClearOfProvince(cfg, grid, placed[0])).toBe(true);
   });
 
+  it("keeps the preferred name (shrunk to fit) over a shorter alt that fits bigger", () => {
+    // A gap that fits the long preferred name only small, but the short fallback
+    // much larger. The fallback is a rescue, not a preference: the preferred name
+    // wins as long as it fits at all, even at a smaller font.
+    const { gw, gh } = cfg;
+    const grid = new Uint8Array(gw * gh).fill(1);
+    const gx0 = 90; // x ∈ [450, 545] — ~95×45 vb
+    const gx1 = 109;
+    const gy0 = 76; // y ∈ [380, 425]
+    const gy1 = 85;
+    for (let y = gy0; y < gy1; y++) {
+      for (let x = gx0; x < gx1; x++) grid[y * gw + x] = 0;
+    }
+    const seeds: LabelSeed[] = [
+      {
+        name: "Costiera Serena",
+        kind: "province",
+        nick: true,
+        seedX: 497,
+        seedY: 402,
+        anchor: invert(grid),
+        avoid: grid,
+        altNames: ["Bari"],
+      },
+    ];
+    const placed = placeLabels(seeds);
+    expect(placed).toHaveLength(1);
+    expect(placed[0].name).toBe("Costiera Serena");
+    // It kept the nickname (small), so nick styling stays on.
+    expect(placed[0].nick).toBe(true);
+    expect(boxClearOfProvince(cfg, grid, placed[0])).toBe(true);
+  });
+
   it("does not overlap two labels competing for the same side", () => {
     const grid = provinceGrid(cfg);
     const seeds: LabelSeed[] = [

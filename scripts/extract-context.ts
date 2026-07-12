@@ -57,6 +57,14 @@ const SIMPLIFY_TOLERANCE = 0.0015;
 /** Grid resolution when probing which seas touch the bbox. */
 const SEA_PROBE = 64;
 
+/**
+ * Foreign countries never worth a context label even when they fall inside a
+ * province's bbox — micro-states that don't actually border an Italian province.
+ * Matched against Natural Earth's `NAME`/`ADMIN`. Monaco borders France, not
+ * Italy; it only appears because it sits on the coast within Cuneo/Imperia's box.
+ */
+const EXCLUDED_COUNTRIES = new Set(["Monaco"]);
+
 const NE_BASE =
   "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson";
 const USER_AGENT =
@@ -327,7 +335,12 @@ async function bakeProvince(
   // would double the France–Italy border and leave gaps. The frontier is drawn
   // once, from the Italian provinces' own edges; France is just a name on paper.
   for (const c of countries) {
-    if ((c.properties.NAME || c.properties.ADMIN) === "Italy") continue;
+    const cName = c.properties.NAME || c.properties.ADMIN;
+    if (cName === "Italy") continue;
+    // Micro-states that fall inside the bbox but don't actually border an
+    // Italian province — Monaco is a coastal city-state hemmed in by France, so
+    // labelling it just clutters the sea edge. Drop it.
+    if (EXCLUDED_COUNTRIES.has(cName)) continue;
     const rings = clipAndSimplify(c.geometry, bbox);
     if (!rings.length) continue;
     const name =

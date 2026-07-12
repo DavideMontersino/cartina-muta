@@ -1,6 +1,11 @@
 [
   {
     "date": "2026-07-12",
+    "sha": "PENDING",
+    "description": "Attorno alla mappa si vedono più nomi e più spesso il soprannome per esteso: un nome lungo viene rimpicciolito il più possibile e solo se proprio non entra si passa al nome breve. Il Principato di Monaco non compare più tra gli stati confinanti (confina con la Francia, non con l'Italia)."
+  },
+  {
+    "date": "2026-07-12",
     "sha": "62b1779ec29f29df1460bd1a3651245856f0d328",
     "description": "Le etichette dei nomi attorno alla mappa ora possono andare a capo su due righe e preferiscono stare in orizzontale invece che in verticale; se un soprannome è troppo lungo per lo spazio disponibile viene mostrato il nome normale, più corto, invece di far sparire del tutto l'etichetta."
   },
