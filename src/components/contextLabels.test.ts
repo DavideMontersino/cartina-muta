@@ -292,6 +292,34 @@ describe("placeLabels", () => {
     expect(placed[0].x).toBeGreaterThan(0.7 * cfg.viewW);
   });
 
+  it("lets a sea name hug the coast when the water sliver is too small alone", () => {
+    // Water is only a thin vertical sliver (right ~8%); the rest is coast. With a
+    // hard land-avoid the long name can't fit, but soft-avoid lets it spill onto
+    // the shore, staying centred on the water.
+    const land = provinceGrid(cfg, { x0: 0, y0: 0, x1: 0.92, y1: 1 });
+    const water = invert(land);
+    const seeds: LabelSeed[] = [
+      {
+        name: "Mar Ligure",
+        kind: "sea",
+        nick: false,
+        seedX: 970,
+        seedY: 400,
+        anchor: water,
+        softAvoid: land, // coast: allowed, but capped
+      },
+    ];
+    const placed = placeLabels(seeds);
+    expect(placed).toHaveLength(1);
+    // Centre sits on the water sliver…
+    const cell =
+      Math.floor(placed[0].y / (cfg.viewH / cfg.gh)) * cfg.gw +
+      Math.floor(placed[0].x / (cfg.viewW / cfg.gw));
+    expect(water[cell]).toBe(1);
+    // …and it did NOT need to fit entirely on water (it hugs the coast).
+    expect(boxClearOfProvince(cfg, land, placed[0])).toBe(false);
+  });
+
   it("does not overlap two labels competing for the same side", () => {
     const grid = provinceGrid(cfg);
     const seeds: LabelSeed[] = [

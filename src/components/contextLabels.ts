@@ -45,6 +45,13 @@ export interface LabelSeed {
    * it off every known surface so it lands on the foreign parchment.
    */
   avoid?: Uint8Array;
+  /**
+   * Cells the box may overlap but *shouldn't* — capped at `softOverlapMax` of the
+   * box (see PlaceConfig). Lets a sea name centred on a small water sliver hug the
+   * coast (its tail over the neighbouring shore) instead of dropping, while still
+   * staying mostly on the water.
+   */
+  softAvoid?: Uint8Array;
 }
 
 /** A placed label: viewBox centre, rotation, and the maximised font size. */
@@ -89,6 +96,8 @@ export interface PlaceConfig {
    * a slanted label that a strict horizontal/vertical pair would miss.
    */
   angles: number[];
+  /** Max fraction of a box that may fall on its `softAvoid` cells (the coast). */
+  softOverlapMax: number;
 }
 
 export const DEFAULT_CONFIG: PlaceConfig = {
@@ -113,6 +122,7 @@ export const DEFAULT_CONFIG: PlaceConfig = {
   distPenalty: 0.05,
   step: 4,
   angles: [0, 22.5, -22.5, 45, -45, 67.5, -67.5, 90],
+  softOverlapMax: 0.5,
 };
 
 /** Order labels are placed in — earlier kinds claim space first. */
@@ -172,6 +182,8 @@ function boxIsClear(
   obstacle: Uint8Array,
   cfg: PlaceConfig,
   edge: number,
+  soft?: Uint8Array,
+  softMax = 1,
 ): boolean {
   const { gw, gh, viewW, viewH } = cfg;
   const cellW = viewW / gw;
@@ -194,6 +206,8 @@ function boxIsClear(
   // thin border can clip the height).
   const nL = Math.max(1, Math.ceil((2 * b.hL) / cell));
   const nH = Math.max(1, Math.ceil((2 * b.hH) / cell));
+  let total = 0;
+  let softHits = 0;
   for (let i = 0; i <= nL; i++) {
     const sl = -b.hL + (2 * b.hL * i) / nL;
     for (let j = 0; j <= nH; j++) {
@@ -202,10 +216,14 @@ function boxIsClear(
       const y = b.cy + sl * b.uy + sh * b.vy;
       const gx = clamp(Math.floor(x / cellW), 0, gw - 1);
       const gy = clamp(Math.floor(y / cellH), 0, gh - 1);
-      if (obstacle[gy * gw + gx]) return false;
+      const cellIdx = gy * gw + gx;
+      if (obstacle[cellIdx]) return false;
+      if (soft?.[cellIdx]) softHits++;
+      total++;
     }
   }
-  return true;
+  // A sea name may hug the coast: allow limited overlap of its `soft` cells.
+  return soft ? softHits <= softMax * total : true;
 }
 
 /**
@@ -222,6 +240,7 @@ function maxFontFit(
   maxFont: number,
   obstacle: Uint8Array,
   cfg: PlaceConfig,
+  soft?: Uint8Array,
 ): number {
   const fits = (f: number): boolean =>
     boxIsClear(
@@ -235,6 +254,8 @@ function maxFontFit(
       obstacle,
       cfg,
       cfg.padVB,
+      soft,
+      cfg.softOverlapMax,
     );
 
   if (!fits(cfg.minFontVB)) return 0;
@@ -356,6 +377,7 @@ export function placeLabels(
             kindMax,
             obstacle,
             cfg,
+            seed.softAvoid,
           );
           if (font < cfg.minFontVB) continue;
           const score = font - cfg.distPenalty * dist;

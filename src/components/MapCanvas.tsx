@@ -66,7 +66,7 @@ const CENTER_Y = VIEW_H / 2;
  * this on-screen floor back to viewBox units so labels drop out on tiny screens
  * instead of rendering as illegible specks.
  */
-const LABEL_FLOOR_PX = { country: 11, sea: 10, province: 9 } as const;
+const LABEL_FLOOR_PX = { country: 8, sea: 7, province: 7 } as const;
 const CONTEXT_ORDER = { sea: 0, province: 1, country: 2 } as const;
 
 /** Region of each province by name, for tinting neighbours by region. */
@@ -352,8 +352,13 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
           seedX: p[0],
           seedY: p[1],
         };
-        // Sea: centre on water, box off all land.
-        if (l.kind === "sea") return [{ ...base, anchor: sea, avoid: land }];
+        // Sea: centre on water, never on the played province, but allowed to
+        // hug the coast — its box may spill onto the neighbouring shore (up to
+        // the placer's softOverlapMax) so a small water sliver still gets a name.
+        if (l.kind === "sea")
+          return [
+            { ...base, anchor: sea, avoid: target, softAvoid: neighbours },
+          ];
         // Country: no shape to pin — just keep it off every known surface.
         if (l.kind === "country") return [{ ...base, avoid: mapped }];
         // Neighbour province: centre on its own polygon, box off the played
