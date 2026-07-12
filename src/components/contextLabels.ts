@@ -31,6 +31,15 @@ export interface LabelSeed {
   seedX: number;
   seedY: number;
   /**
+   * Shorter names to fall back to, in preference order, when `name` can't be
+   * placed legibly. Used for the flavour nicknames: the plain province name rides
+   * along here, so a nickname too long for a small visible sliver degrades to the
+   * real name instead of dropping the label entirely. The first candidate that
+   * fits *comfortably* (see `comfortFontVB`) wins; otherwise the biggest-fitting
+   * one does; only if none fit at all is the label dropped.
+   */
+  altNames?: string[];
+  /**
    * Cells the label's *centre* must fall inside (1 = allowed) — its own region
    * on screen (this neighbour province's polygon, or the sea). Pins the name to
    * its own area; when that area isn't visible, the label is dropped. The box may
@@ -57,7 +66,14 @@ export interface LabelSeed {
 /** A placed label: viewBox centre, rotation, and the maximised font size. */
 export interface PlacedLabel {
   key: string;
+  /** The chosen string — `name`, or one of the seed's `altNames` when it fits better. */
   name: string;
+  /**
+   * The chosen string split into rendered lines (one entry = single line). The
+   * placer may wrap a multi-word name to fit a squarer gap; the renderer stacks
+   * these as tspans, centred on (x, y).
+   */
+  lines: string[];
   kind: ContextLabelKind;
   nick: boolean;
   x: number;
@@ -98,6 +114,27 @@ export interface PlaceConfig {
   angles: number[];
   /** Max fraction of a box that may fall on its `softAvoid` cells (the coast). */
   softOverlapMax: number;
+  /**
+   * Max lines a multi-word name may wrap onto. A long two-word nickname packs a
+   * squarer box wrapped than as one long ribbon, so it can sit horizontally (and
+   * bigger) in a blobby gap instead of being stood up vertical. Single-word names
+   * never wrap. 1 disables wrapping.
+   */
+  maxLines: number;
+  /**
+   * Readability penalty for steep text: a placement's score is scaled by
+   * `1 − readabilityBias·|sin(angle)|`, so a vertical label must be this much
+   * bigger than a horizontal one to win. Keeps names upright unless a genuinely
+   * tall-narrow gap (a coastal column) only fits them stood up.
+   */
+  readabilityBias: number;
+  /**
+   * Font (viewBox units) at or above which a name is "comfortably" placed: the
+   * first `altNames` candidate to reach it wins outright, so a nickname that fits
+   * well is never demoted to the plain name. Below it, the biggest-fitting
+   * candidate wins (the short fallback rescues an otherwise-dropped label).
+   */
+  comfortFontVB: number;
 }
 
 export const DEFAULT_CONFIG: PlaceConfig = {
@@ -123,6 +160,9 @@ export const DEFAULT_CONFIG: PlaceConfig = {
   step: 4,
   angles: [0, 22.5, -22.5, 45, -45, 67.5, -67.5, 90],
   softOverlapMax: 0.5,
+  maxLines: 2,
+  readabilityBias: 0.28,
+  comfortFontVB: 26,
 };
 
 /** Order labels are placed in — earlier kinds claim space first. */
@@ -299,6 +339,161 @@ function stampBox(grid: Uint8Array, b: OrientedBox, cfg: PlaceConfig): void {
 }
 
 /**
+ * Split `words` into `k` contiguous lines, balancing the joined length of each
+ * so the widest line is as short as possible (a small DP; names are only a few
+ * words). Returns the k line strings, top to bottom.
+ */
+function balancedLines(words: string[], k: number): string[] {
+  const n = words.length;
+  const len = words.map((w) => w.length);
+  // Length of words[i..j) joined by single spaces.
+  const joinLen = (i: number, j: number): number => {
+    let s = 0;
+    for (let t = i; t < j; t++) s += len[t];
+    return s + Math.max(0, j - i - 1);
+  };
+  // Best (min widest-line) split of words[i..] into g groups, with the first cut.
+  const memo = new Map<string, { max: number; cut: number }>();
+  const solve = (i: number, g: number): { max: number; cut: number } => {
+    const key = `${i},${g}`;
+    const hit = memo.get(key);
+    if (hit) return hit;
+    let res: { max: number; cut: number };
+    if (g === 1) {
+      res = { max: joinLen(i, n), cut: n };
+    } else {
+      res = { max: Number.POSITIVE_INFINITY, cut: i + 1 };
+      for (let j = i + 1; j <= n - (g - 1); j++) {
+        const widest = Math.max(joinLen(i, j), solve(j, g - 1).max);
+        if (widest < res.max) res = { max: widest, cut: j };
+      }
+    }
+    memo.set(key, res);
+    return res;
+  };
+
+  const lines: string[] = [];
+  let i = 0;
+  for (let g = k; g >= 1; g--) {
+    if (g === 1) {
+      lines.push(words.slice(i).join(" "));
+      break;
+    }
+    const { cut } = solve(i, g);
+    lines.push(words.slice(i, cut).join(" "));
+    i = cut;
+  }
+  return lines;
+}
+
+/**
+ * All the line-wrappings to try for a name: 1 line, plus balanced splits up to
+ * `maxLines` (never more lines than words). Single-word names yield one option.
+ */
+function lineOptions(name: string, maxLines: number): string[][] {
+  const words = name.trim().split(/\s+/);
+  const maxK = Math.max(1, Math.min(maxLines, words.length));
+  const opts: string[][] = [];
+  for (let k = 1; k <= maxK; k++) opts.push(balancedLines(words, k));
+  return opts;
+}
+
+/** Score multiplier for text at `angleDeg`: 1 flat, down to 1−bias vertical. */
+function readabilityFactor(angleDeg: number, bias: number): number {
+  return 1 - bias * Math.abs(Math.sin((angleDeg * Math.PI) / 180));
+}
+
+/** The box half-extents (before adding font/pad) for one wrapping option. */
+interface Shaped {
+  lines: string[];
+  /** Half-run along the text: driven by the widest line. */
+  runHalf: number;
+  /** Half-height across the text: driven by the line count. */
+  capHalf: number;
+}
+
+/**
+ * Best placement (largest readability-weighted box near the anchor) for a single
+ * candidate string, trying every wrapping × orientation × grid centre. Returns
+ * null when nothing legible fits.
+ */
+function searchName(
+  name: string,
+  obstacle: Uint8Array,
+  anchorMask: Uint8Array | undefined,
+  soft: Uint8Array | undefined,
+  sx: number,
+  sy: number,
+  kindMax: number,
+  cfg: PlaceConfig,
+): {
+  x: number;
+  y: number;
+  angle: number;
+  font: number;
+  score: number;
+  shaped: Shaped;
+} | null {
+  const { gw, gh, viewW, viewH, charWidth, lineHeight, step } = cfg;
+  const cellW = viewW / gw;
+  const cellH = viewH / gh;
+
+  const shapes: Shaped[] = lineOptions(name, cfg.maxLines).map((lines) => {
+    const widest = Math.max(...lines.map((s) => Math.max(1, s.length)));
+    return {
+      lines,
+      runHalf: 0.5 * charWidth * widest,
+      capHalf: 0.5 * lineHeight * lines.length,
+    };
+  });
+
+  let best: {
+    x: number;
+    y: number;
+    angle: number;
+    font: number;
+    score: number;
+    shaped: Shaped;
+  } | null = null;
+
+  for (let gy = 0; gy < gh; gy += step) {
+    const cy = (gy + 0.5) * cellH;
+    for (let gx = 0; gx < gw; gx += step) {
+      const at = gy * gw + gx;
+      if (obstacle[at]) continue;
+      // Pin the label's centre to its own region on screen.
+      if (anchorMask && !anchorMask[at]) continue;
+      const cx = (gx + 0.5) * cellW;
+      const dist = Math.hypot(cx - sx, cy - sy);
+      if (dist > cfg.maxSeedDist) continue;
+
+      for (const angle of cfg.angles) {
+        const readable = readabilityFactor(angle, cfg.readabilityBias);
+        for (const shaped of shapes) {
+          const font = maxFontFit(
+            cx,
+            cy,
+            angle,
+            shaped.runHalf,
+            shaped.capHalf,
+            kindMax,
+            obstacle,
+            cfg,
+            soft,
+          );
+          if (font < cfg.minFontVB) continue;
+          const score = font * readable - cfg.distPenalty * dist;
+          if (!best || score > best.score) {
+            best = { x: cx, y: cy, angle, font, score, shaped };
+          }
+        }
+      }
+    }
+  }
+  return best;
+}
+
+/**
  * Place every label in the largest free box near its anchor. Each label is
  * pinned to its own region: its box centre must land on that region (`anchor`)
  * and its box must avoid the played province, the wrong surface, and every other
@@ -312,9 +507,7 @@ export function placeLabels(
   config: Partial<PlaceConfig> = {},
 ): PlacedLabel[] {
   const cfg: PlaceConfig = { ...DEFAULT_CONFIG, ...config };
-  const { gw, gh, viewW, viewH, charWidth, lineHeight, padVB, step } = cfg;
-  const cellW = viewW / gw;
-  const cellH = viewH / gh;
+  const { gw, gh, viewW, viewH, padVB } = cfg;
   const n = gw * gh;
 
   // Boxes of already-placed labels, added to each label's own constraint so no
@@ -335,9 +528,6 @@ export function placeLabels(
   const placed: PlacedLabel[] = [];
 
   for (const { seed, i } of ordered) {
-    const len = Math.max(1, seed.name.length);
-    const capHalf = 0.5 * lineHeight;
-    const runHalf = 0.5 * charWidth * len;
     const kindMax = cfg.maxFontVB[seed.kind];
     // Obstacle for this label = outside-its-region ∪ every label already placed.
     rebuild(seed);
@@ -346,71 +536,69 @@ export function placeLabels(
     const sx = clamp(seed.seedX, padVB, viewW - padVB);
     const sy = clamp(seed.seedY, padVB, viewH - padVB);
 
-    let best: {
+    // Try the preferred name, then each shorter fallback. Take the first that
+    // fits *comfortably*; otherwise keep the biggest-fitting candidate so a short
+    // fallback can rescue a name that would otherwise drop.
+    let chosen: {
+      name: string;
       x: number;
       y: number;
       angle: number;
       font: number;
-      score: number;
+      shaped: Shaped;
     } | null = null;
-
-    const anchorMask = seed.anchor;
-    for (let gy = 0; gy < gh; gy += step) {
-      const cy = (gy + 0.5) * cellH;
-      for (let gx = 0; gx < gw; gx += step) {
-        const at = gy * gw + gx;
-        if (obstacle[at]) continue;
-        // Pin the label's centre to its own region on screen.
-        if (anchorMask && !anchorMask[at]) continue;
-        const cx = (gx + 0.5) * cellW;
-        const dist = Math.hypot(cx - sx, cy - sy);
-        if (dist > cfg.maxSeedDist) continue;
-
-        // Try each readable orientation; a slanted gap can hold a bigger label.
-        for (const angle of cfg.angles) {
-          const font = maxFontFit(
-            cx,
-            cy,
-            angle,
-            runHalf,
-            capHalf,
-            kindMax,
-            obstacle,
-            cfg,
-            seed.softAvoid,
-          );
-          if (font < cfg.minFontVB) continue;
-          const score = font - cfg.distPenalty * dist;
-          if (!best || score > best.score) {
-            best = { x: cx, y: cy, angle: readable(angle), font, score };
-          }
-        }
+    const candidates = [seed.name, ...(seed.altNames ?? [])];
+    for (const cand of candidates) {
+      const found = searchName(
+        cand,
+        obstacle,
+        seed.anchor,
+        seed.softAvoid,
+        sx,
+        sy,
+        kindMax,
+        cfg,
+      );
+      if (!found) continue;
+      if (!chosen || found.font > chosen.font) {
+        chosen = {
+          name: cand,
+          x: found.x,
+          y: found.y,
+          angle: readable(found.angle),
+          font: found.font,
+          shaped: found.shaped,
+        };
       }
+      if (found.font >= cfg.comfortFontVB) break;
     }
 
-    if (!best) continue;
+    if (!chosen) continue;
 
     stampBox(
       placedMask,
       makeBox(
-        best.x,
-        best.y,
-        best.angle,
-        runHalf * best.font + padVB,
-        capHalf * best.font + padVB,
+        chosen.x,
+        chosen.y,
+        chosen.angle,
+        chosen.shaped.runHalf * chosen.font + padVB,
+        chosen.shaped.capHalf * chosen.font + padVB,
       ),
       cfg,
     );
 
     placed.push({
       key: `lbl-${i}`,
-      name: seed.name,
+      name: chosen.name,
+      lines: chosen.shaped.lines,
       kind: seed.kind,
-      nick: seed.nick,
-      x: best.x,
-      y: best.y,
-      angle: best.angle,
-      fontVB: best.font,
+      // Nick styling only when the flavour nickname itself was the one placed —
+      // a plain-name fallback renders in the normal face.
+      nick: seed.nick && chosen.name === seed.name,
+      x: chosen.x,
+      y: chosen.y,
+      angle: chosen.angle,
+      fontVB: chosen.font,
     });
   }
 

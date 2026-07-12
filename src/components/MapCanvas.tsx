@@ -351,6 +351,10 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
           nick: nick !== null,
           seedX: p[0],
           seedY: p[1],
+          // When a flavour nickname is used, keep the plain name as a shorter
+          // fallback so a long nickname degrades to the real name in a tight gap
+          // instead of the label dropping out entirely.
+          altNames: nick ? [l.name] : undefined,
         };
         // Sea: centre on water, never on the played province, but allowed to
         // hug the coast — its box may spill onto the neighbouring shore (up to
@@ -560,6 +564,11 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
               {placedLabels.flatMap((l) => {
                 const s = svgScale > 0 ? svgScale : 1;
                 if (l.fontVB * s < LABEL_FLOOR_PX[l.kind]) return [];
+                // Stack wrapped lines as tspans centred on (x, y): each line's
+                // baseline is offset by ±½ line-height from the centre so the
+                // block stays vertically centred under the rotation transform.
+                const lineGap = l.fontVB * DEFAULT_CONFIG.lineHeight;
+                const top = -((l.lines.length - 1) / 2) * lineGap;
                 return [
                   <text
                     key={l.key}
@@ -574,7 +583,17 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
                       strokeWidth: 4,
                     }}
                   >
-                    {l.name}
+                    {l.lines.length <= 1
+                      ? l.name
+                      : l.lines.map((line, li) => (
+                          <tspan
+                            key={`${l.key}-${line}`}
+                            x={l.x}
+                            y={l.y + top + li * lineGap}
+                          >
+                            {line}
+                          </tspan>
+                        ))}
                   </text>,
                 ];
               })}

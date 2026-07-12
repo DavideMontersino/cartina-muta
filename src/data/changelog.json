@@ -1,6 +1,11 @@
 [
   {
     "date": "2026-07-12",
+    "sha": "PENDING",
+    "description": "Le etichette dei nomi attorno alla mappa ora possono andare a capo su due righe e preferiscono stare in orizzontale invece che in verticale; se un soprannome è troppo lungo per lo spazio disponibile viene mostrato il nome normale, più corto, invece di far sparire del tutto l'etichetta."
+  },
+  {
+    "date": "2026-07-12",
     "sha": "2d4b57bbdc4169b7ceb906c34fff2ddbf781e362",
     "description": "I comuni già trovati, saltati o apparsi nei turni precedenti non sono più cliccabili."
   },

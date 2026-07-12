@@ -37,7 +37,12 @@ type Placed = {
   angle: number;
   fontVB: number;
   name: string;
+  lines: string[];
 };
+
+/** Widest line (chars) of a placed label — the box's run is driven by it. */
+const widestLine = (l: Placed): number =>
+  Math.max(...l.lines.map((s) => Math.max(1, s.length)));
 
 /** The four corners of a placed label's (unpadded) oriented box, in viewBox units. */
 function corners(cfg: PlaceConfig, l: Placed): Array<[number, number]> {
@@ -46,8 +51,8 @@ function corners(cfg: PlaceConfig, l: Placed): Array<[number, number]> {
   const uy = Math.sin(r);
   const vx = -uy;
   const vy = ux;
-  const hL = 0.5 * cfg.charWidth * l.name.length * l.fontVB;
-  const hH = 0.5 * cfg.lineHeight * l.fontVB;
+  const hL = 0.5 * cfg.charWidth * widestLine(l) * l.fontVB;
+  const hH = 0.5 * cfg.lineHeight * l.lines.length * l.fontVB;
   const pts: Array<[number, number]> = [];
   for (const sl of [-hL, hL])
     for (const sh of [-hH, hH])
@@ -71,8 +76,8 @@ function boxClearOfProvince(
   const uy = Math.sin(r);
   const vx = -uy;
   const vy = ux;
-  const hL = 0.5 * charWidth * l.name.length * l.fontVB;
-  const hH = 0.5 * lineHeight * l.fontVB;
+  const hL = 0.5 * charWidth * widestLine(l) * l.fontVB;
+  const hH = 0.5 * lineHeight * l.lines.length * l.fontVB;
   const nL = Math.max(1, Math.ceil((2 * hL) / cell));
   const nH = Math.max(1, Math.ceil((2 * hH) / cell));
   for (let i = 0; i <= nL; i++) {
@@ -293,10 +298,10 @@ describe("placeLabels", () => {
   });
 
   it("lets a sea name hug the coast when the water sliver is too small alone", () => {
-    // Water is only a thin vertical sliver (right ~8%); the rest is coast. With a
-    // hard land-avoid the long name can't fit, but soft-avoid lets it spill onto
-    // the shore, staying centred on the water.
-    const land = provinceGrid(cfg, { x0: 0, y0: 0, x1: 0.92, y1: 1 });
+    // Water is only a thin vertical sliver (right ~4%); the rest is coast. Even
+    // wrapped, the name can't fit the sliver alone under a hard land-avoid, but
+    // soft-avoid lets it spill onto the shore, staying centred on the water.
+    const land = provinceGrid(cfg, { x0: 0, y0: 0, x1: 0.96, y1: 1 });
     const water = invert(land);
     const seeds: LabelSeed[] = [
       {
@@ -318,6 +323,72 @@ describe("placeLabels", () => {
     expect(water[cell]).toBe(1);
     // …and it did NOT need to fit entirely on water (it hugs the coast).
     expect(boxClearOfProvince(cfg, land, placed[0])).toBe(false);
+  });
+
+  it("wraps a long two-word name to sit horizontally instead of vertical", () => {
+    // Free space is a wide, short strip (450×200) — like a coastal band. A long
+    // single-line ribbon can't lie flat in it, but split across two lines it
+    // packs a squarer box that drops in horizontally, far bigger than any
+    // vertical orientation the short height allows.
+    const { gw, gh } = cfg;
+    const grid = new Uint8Array(gw * gh).fill(1);
+    const gx0 = Math.floor(0.5 * gw); // x ∈ [500, 950]
+    const gx1 = Math.floor(0.95 * gw);
+    const gy0 = Math.floor(0.375 * gh); // y ∈ [300, 500]
+    const gy1 = Math.floor(0.625 * gh);
+    for (let y = gy0; y < gy1; y++) {
+      for (let x = gx0; x < gx1; x++) grid[y * gw + x] = 0;
+    }
+    const seeds: LabelSeed[] = [
+      {
+        name: "Ombrelloni sovrapprezzati",
+        kind: "province",
+        nick: true,
+        seedX: 725,
+        seedY: 400,
+        anchor: invert(grid),
+        avoid: grid,
+      },
+    ];
+    const placed = placeLabels(seeds);
+    expect(placed).toHaveLength(1);
+    // It wrapped to two lines and reads roughly horizontal, not vertical.
+    expect(placed[0].lines).toHaveLength(2);
+    expect(Math.abs(placed[0].angle)).toBeLessThan(25);
+    expect(boxClearOfProvince(cfg, grid, placed[0])).toBe(true);
+  });
+
+  it("falls back to a shorter name when the preferred one won't fit", () => {
+    // Only a small square gap is free — too small for the long nickname at any
+    // orientation, but the short fallback fits. The label survives as the plain
+    // name rather than dropping.
+    const { gw, gh } = cfg;
+    const grid = new Uint8Array(gw * gh).fill(1);
+    const gx0 = Math.floor(0.44 * gw); // ~120×96 vb gap around the centre
+    const gx1 = Math.floor(0.56 * gw);
+    const gy0 = Math.floor(0.44 * gh);
+    const gy1 = Math.floor(0.56 * gh);
+    for (let y = gy0; y < gy1; y++) {
+      for (let x = gx0; x < gx1; x++) grid[y * gw + x] = 0;
+    }
+    const seeds: LabelSeed[] = [
+      {
+        name: "Ombrelloni sovrapprezzati",
+        kind: "province",
+        nick: true,
+        seedX: 500,
+        seedY: 400,
+        anchor: invert(grid),
+        avoid: grid,
+        altNames: ["Imperia"],
+      },
+    ];
+    const placed = placeLabels(seeds);
+    expect(placed).toHaveLength(1);
+    expect(placed[0].name).toBe("Imperia");
+    // The fallback is the real name, so it drops the italic/bold nick styling.
+    expect(placed[0].nick).toBe(false);
+    expect(boxClearOfProvince(cfg, grid, placed[0])).toBe(true);
   });
 
   it("does not overlap two labels competing for the same side", () => {
