@@ -114,7 +114,12 @@ describe("reducer — complete mode", () => {
   });
 
   it("tracks a correct-guess streak and resets it on a wrong guess", () => {
-    let s = createGame(startComplete(3), noShuffleRng);
+    // Use 4 features so there is always a pending wrong target to guess after
+    // two correct guesses (indices 0 and 1 resolved, target=2, wrong=3).
+    let s = createGame(
+      { map: fakeMap(4), mode: { kind: "complete" }, difficulty: "normal" },
+      noShuffleRng,
+    );
     s = reducer(s, { type: "guess", index: currentTarget(s) as number });
     expect(s.correctStreak).toBe(1);
     expect(s.wrongStreak).toBe(0);
@@ -122,7 +127,10 @@ describe("reducer — complete mode", () => {
     expect(s.correctStreak).toBe(2);
 
     const target = currentTarget(s) as number;
-    const wrong = target === 2 ? 1 : 2;
+    // Pick an index that is both wrong (≠ target) and still pending (≠ resolved).
+    const wrong = [0, 1, 2, 3].find(
+      (i) => i !== target && s.status[i] === "pending",
+    ) as number;
     s = reducer(s, { type: "guess", index: wrong });
     expect(s.correctStreak).toBe(0);
     expect(s.wrongStreak).toBe(1);
@@ -170,6 +178,27 @@ describe("reducer — complete mode", () => {
     expect(s.phase).toBe("finished");
     const after = reducer(s, { type: "guess", index: 0 });
     expect(after).toBe(s);
+  });
+
+  it("ignores a guess on an already-resolved (found/missed) municipality", () => {
+    // Clicking a found or skipped comune should be a no-op — it must not
+    // increment mistakes or consume energy (issue #46).
+    let s = createGame(startComplete(3), noShuffleRng);
+    // Resolve index 0 as found.
+    s = reducer(s, { type: "guess", index: 0 });
+    expect(s.status[0]).toBe("found");
+    // Resolve index 1 as missed.
+    s = reducer(s, { type: "skip" });
+    expect(s.status[1]).toBe("missed");
+    const beforeMistakes = s.mistakes;
+    // Clicking the found comune is a no-op.
+    const afterFound = reducer(s, { type: "guess", index: 0 });
+    expect(afterFound).toBe(s);
+    expect(afterFound.mistakes).toBe(beforeMistakes);
+    // Clicking the missed comune is a no-op.
+    const afterMissed = reducer(s, { type: "guess", index: 1 });
+    expect(afterMissed).toBe(s);
+    expect(afterMissed.mistakes).toBe(beforeMistakes);
   });
 });
 

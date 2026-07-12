@@ -414,6 +414,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
   const handlePick = useCallback(
     (index: number) => {
       if (target === null) return;
+      if (state.status[index] !== "pending") return;
       // Energy mode's 3rd-miss auto-reveal advances the round before the reveal
       // effect runs, so capture the target now (mirrors the skip flow).
       if (isEnergy) pendingEnergyTargetRef.current = target;
@@ -433,7 +434,7 @@ export function GameScreen({ config, onExit, onRestart }: GameScreenProps) {
           : undefined,
       });
     },
-    [target, config.map.features, isEnergy],
+    [target, state.status, config.map.features, isEnergy],
   );
 
   const resolved = state.found + state.missed;

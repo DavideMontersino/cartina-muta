@@ -76,6 +76,7 @@ export function GameRoom({ conn, map, onExit }: GameRoomProps) {
 
   const onPick = (index: number) => {
     if (!interactive) return;
+    if (status[index] !== "pending") return;
     setPickedIndex(index);
     conn.guess(map.features[index].istat);
   };

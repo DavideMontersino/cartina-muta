@@ -355,6 +355,7 @@ export function reducer(state: GameState, action: GameAction): GameState {
     case "guess": {
       const target = currentTarget(state);
       if (target === null) return state;
+      if (state.status[action.index] !== "pending") return state;
       const nextFeedbackId = (state.feedback?.id ?? 0) + 1;
       const correct = action.index === target;
 
