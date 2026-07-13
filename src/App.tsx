@@ -11,6 +11,7 @@ import { getProvince, loadMap } from "./maps/registry";
 import { normalizeCode } from "./multiplayer/code";
 import { ChangelogPage } from "./pages/ChangelogPage";
 import { CreditsPage } from "./pages/CreditsPage";
+import { GamePage } from "./pages/GamePage";
 import { LeaderboardPage } from "./pages/LeaderboardPage";
 
 interface Selection {
@@ -105,6 +106,9 @@ export function App() {
         </Route>
         <Route path="/leaderboard/:provinceId">
           {(params) => <LeaderboardPage provinceId={params.provinceId} />}
+        </Route>
+        <Route path="/game/:id">
+          {(params) => <GamePage gameId={params.id} />}
         </Route>
         <Route path="/credits">
           <CreditsPage />

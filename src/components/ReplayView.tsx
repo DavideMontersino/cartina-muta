@@ -1,5 +1,7 @@
+import { Check, Link2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { fetchGame } from "../leaderboard/client";
+import { gameReplayPath } from "../leaderboard/constants";
 import { buildReplayFrames, type ReplayFrame } from "../leaderboard/replay";
 import type { GameReplay } from "../leaderboard/types";
 import { loadMap } from "../maps/registry";
@@ -9,6 +11,8 @@ import { MapCanvas } from "./MapCanvas";
 interface ReplayViewProps {
   gameId: string;
   onClose: () => void;
+  /** Notified once the game loads (GitHub #48) — lets a page build a back link. */
+  onLoaded?: (game: GameReplay) => void;
 }
 
 interface Loaded {
@@ -38,16 +42,18 @@ function outcomeLabel(frame: ReplayFrame, map: MapDefinition): string {
 // Full-screen replay of a recorded game (GitHub #25): steps the leaderboard
 // row's action log through a re-used MapCanvas. Opened as an overlay from a
 // clickable leaderboard row.
-export function ReplayView({ gameId, onClose }: ReplayViewProps) {
+export function ReplayView({ gameId, onClose, onLoaded }: ReplayViewProps) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [step, setStep] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setState({ status: "loading" });
     setStep(0);
     setPlaying(false);
+    setCopied(false);
     fetchGame(gameId).then(async (res) => {
       if (cancelled) return;
       if (!res.ok) {
@@ -67,6 +73,7 @@ export function ReplayView({ gameId, onClose }: ReplayViewProps) {
         );
         setState({ status: "ready", data: { game: res.game, map, frames } });
         setPlaying(frames.length > 1);
+        onLoaded?.(res.game);
       } catch {
         if (!cancelled) {
           setState({
@@ -79,7 +86,7 @@ export function ReplayView({ gameId, onClose }: ReplayViewProps) {
     return () => {
       cancelled = true;
     };
-  }, [gameId]);
+  }, [gameId, onLoaded]);
 
   const frames = state.status === "ready" ? state.data.frames : [];
   const lastStep = Math.max(0, frames.length - 1);
@@ -100,6 +107,19 @@ export function ReplayView({ gameId, onClose }: ReplayViewProps) {
   }, [playing, frames.length, lastStep]);
 
   const current = frames[Math.min(step, lastStep)] ?? null;
+
+  const shareLink = async () => {
+    const url = `${window.location.origin}${gameReplayPath(gameId)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard blocked (insecure context / denied) — surface the URL so the
+      // player can copy it by hand rather than failing silently.
+      window.prompt("Copia il link della partita:", url);
+    }
+  };
 
   const caption = useMemo(() => {
     if (state.status !== "ready" || !current) return null;
@@ -122,13 +142,32 @@ export function ReplayView({ gameId, onClose }: ReplayViewProps) {
             </>
           )}
         </div>
-        <button
-          type="button"
-          className="btn btn--ghost btn--sm"
-          onClick={onClose}
-        >
-          ✕ Chiudi
-        </button>
+        <div className="replay__bar-actions">
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={shareLink}
+            disabled={state.status !== "ready"}
+            title="Copia il link della partita"
+          >
+            {copied ? (
+              <>
+                <Check size={14} aria-hidden="true" /> Copiato
+              </>
+            ) : (
+              <>
+                <Link2 size={14} aria-hidden="true" /> Condividi
+              </>
+            )}
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={onClose}
+          >
+            ✕ Chiudi
+          </button>
+        </div>
       </div>
 
       {state.status === "loading" && (

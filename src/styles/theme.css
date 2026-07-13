@@ -2552,6 +2552,12 @@ button.leaderboard__row.is-me:focus-visible {
   gap: 1rem;
   flex: 0 0 auto;
 }
+.replay__bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
 .replay__meta {
   display: flex;
   flex-direction: column;

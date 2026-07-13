@@ -46,3 +46,36 @@ export function decodeMode(raw: string): GameMode | null {
     return null;
   return { kind: "timer", durationSeconds };
 }
+
+/**
+ * Serialize the board's mode + difficulty selection into the leaderboard URL's
+ * query string (`?m=timer:60&d=easy`), so a shared link reopens the exact board
+ * the sharer was looking at rather than the default tab (GitHub #48).
+ */
+export function encodeLeaderboardSearch(
+  mode: GameMode,
+  difficulty: Difficulty,
+): string {
+  const params = new URLSearchParams();
+  params.set("m", encodeMode(mode));
+  params.set("d", difficulty);
+  return params.toString();
+}
+
+/** Parse the leaderboard URL's `?m` / `?d` params back into a selection (GitHub #48). */
+export function decodeLeaderboardSearch(search: string): {
+  mode: GameMode | null;
+  difficulty: Difficulty;
+} {
+  const params = new URLSearchParams(search);
+  const m = params.get("m");
+  return {
+    mode: m ? decodeMode(m) : null,
+    difficulty: decodeDifficulty(params.get("d")),
+  };
+}
+
+/** Canonical, shareable path for a single game's replay (GitHub #48). */
+export function gameReplayPath(gameId: string): string {
+  return `/game/${encodeURIComponent(gameId)}`;
+}

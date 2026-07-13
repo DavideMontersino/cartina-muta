@@ -1,6 +1,11 @@
-import { Link } from "wouter";
+import { useCallback } from "react";
+import { Link, useSearch } from "wouter";
 import { LeaderboardPanel } from "../components/LeaderboardPanel";
-import { decodeDifficulty, decodeMode } from "../leaderboard/constants";
+import type { Difficulty, GameMode } from "../game/engine";
+import {
+  decodeLeaderboardSearch,
+  encodeLeaderboardSearch,
+} from "../leaderboard/constants";
 import { getProvince } from "../maps/registry";
 
 interface LeaderboardPageProps {
@@ -9,9 +14,22 @@ interface LeaderboardPageProps {
 
 export function LeaderboardPage({ provinceId }: LeaderboardPageProps) {
   const province = getProvince(provinceId);
-  const params = new URLSearchParams(window.location.search);
-  const mode = params.get("m") ? decodeMode(params.get("m") as string) : null;
-  const difficulty = decodeDifficulty(params.get("d"));
+  // Reading the search via wouter keeps the board in sync if the URL changes.
+  const search = useSearch();
+  const { mode, difficulty } = decodeLeaderboardSearch(search);
+
+  // Mirror the visible mode/difficulty into the URL (replace — no history spam)
+  // so the link is shareable and reopens the exact board (GitHub #48).
+  const handleSelectionChange = useCallback(
+    (m: GameMode, d: Difficulty) => {
+      const next = encodeLeaderboardSearch(m, d);
+      const url = `/leaderboard/${provinceId}?${next}`;
+      if (`${window.location.pathname}${window.location.search}` !== url) {
+        window.history.replaceState(null, "", url);
+      }
+    },
+    [provinceId],
+  );
 
   if (!province) {
     return (
@@ -37,7 +55,9 @@ export function LeaderboardPage({ provinceId }: LeaderboardPageProps) {
         <LeaderboardPanel
           provinceId={provinceId}
           provinceName={province.name}
-          difficulty={mode ? difficulty : undefined}
+          mode={mode ?? undefined}
+          difficulty={difficulty}
+          onSelectionChange={handleSelectionChange}
         />
       </div>
     </div>

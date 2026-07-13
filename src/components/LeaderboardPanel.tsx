@@ -5,6 +5,7 @@ import { fetchLeaderboard } from "../leaderboard/client";
 import {
   DIFFICULTIES,
   DIFFICULTY_LABELS,
+  encodeMode,
   TIMER_DURATIONS,
 } from "../leaderboard/constants";
 import { isReplayable } from "../leaderboard/replay";
@@ -16,6 +17,14 @@ interface LeaderboardPanelProps {
   provinceName: string;
   /** Pre-select a difficulty tab (e.g. the one being chosen in the wizard). */
   difficulty?: Difficulty;
+  /** Pre-select a mode tab (e.g. from a shared leaderboard link — GitHub #48). */
+  mode?: GameMode;
+  /**
+   * Called whenever the visible mode/difficulty selection changes, so a hosting
+   * page can mirror it into the URL for a shareable link (GitHub #48). Omitted
+   * where the board is embedded (result card) and shouldn't touch the URL.
+   */
+  onSelectionChange?: (mode: GameMode, difficulty: Difficulty) => void;
 }
 
 const MODE_TABS: { mode: GameMode; label: string }[] = [
@@ -26,6 +35,14 @@ const MODE_TABS: { mode: GameMode; label: string }[] = [
     label: `${seconds / 60} min`,
   })),
 ];
+
+/** Index of the tab matching a mode, or 0 (Energia) when absent/unknown. */
+function modeTabIndex(mode: GameMode | undefined): number {
+  if (!mode) return 0;
+  const encoded = encodeMode(mode);
+  const i = MODE_TABS.findIndex((t) => encodeMode(t.mode) === encoded);
+  return i === -1 ? 0 : i;
+}
 
 type LoadState =
   | { status: "loading" }
@@ -51,18 +68,28 @@ export function LeaderboardPanel({
   provinceId,
   provinceName,
   difficulty: initialDifficulty = "normal",
+  mode: initialMode,
+  onSelectionChange,
 }: LeaderboardPanelProps) {
-  const [modeIndex, setModeIndex] = useState(0);
+  const [modeIndex, setModeIndex] = useState(() => modeTabIndex(initialMode));
   const [difficulty, setDifficulty] = useState<Difficulty>(initialDifficulty);
   const [state, setState] = useState<LoadState>({ status: "loading" });
   // The game currently being replayed (GitHub #25), or null.
   const [replayId, setReplayId] = useState<string | null>(null);
   const isEnergy = MODE_TABS[modeIndex].mode.kind === "energy";
 
-  // Follow the wizard's difficulty selection when it changes upstream.
+  // Follow the wizard's / shared link's selection when it changes upstream.
   useEffect(() => {
     setDifficulty(initialDifficulty);
   }, [initialDifficulty]);
+  useEffect(() => {
+    setModeIndex(modeTabIndex(initialMode));
+  }, [initialMode]);
+
+  // Mirror the live selection outward (e.g. into the URL) for shareable links.
+  useEffect(() => {
+    onSelectionChange?.(MODE_TABS[modeIndex].mode, difficulty);
+  }, [modeIndex, difficulty, onSelectionChange]);
 
   useEffect(() => {
     let cancelled = false;
