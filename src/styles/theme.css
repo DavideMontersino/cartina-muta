@@ -841,8 +841,12 @@ button {
 .map-canvas--terrain .region--missed {
   fill-opacity: 0.55;
 }
-.map-canvas--terrain .region--reveal,
+.map-canvas--terrain .region--reveal {
+  fill: var(--reveal-bright);
+  fill-opacity: 0.85;
+}
 .map-canvas--terrain .region--flash {
+  fill: var(--terracotta);
   fill-opacity: 0.85;
 }
 
