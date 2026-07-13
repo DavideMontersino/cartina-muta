@@ -1,7 +1,7 @@
 [
   {
     "date": "2026-07-13",
-    "sha": "0000000000000000000000000000000000000000",
+    "sha": "cdf27d3fcf73ea77531131e438d201aa179b3190",
     "description": "Corretto un bug per cui, con il rilievo del terreno attivo (difficoltà Facile), il lampo colorato che rivela il comune saltato non si vedeva affatto: ora è visibile in ogni difficoltà."
   },
   {
