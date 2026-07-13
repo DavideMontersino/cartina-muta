@@ -53,10 +53,16 @@ export interface GameReplay {
   id: string;
   provinceId: string;
   name: string;
+  /** Mode the game was played in — needed to link back to its board (GitHub #48). */
+  mode: GameMode;
   difficulty: Difficulty;
   found: number;
   totalRegions: number;
   elapsedMs: number;
   createdAt: number;
+  /** This game's player's rank on its (province, mode, difficulty) board (GitHub #48). */
+  rank: number;
+  /** Number of ranked players on that board (GitHub #48). */
+  totalPlayers: number;
   actionLog: ActionLogEntry[];
 }

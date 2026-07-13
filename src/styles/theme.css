@@ -1290,6 +1290,33 @@ button {
 .result-card__actions .btn {
   width: 100%;
 }
+.result-card__recap {
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.6rem;
+  background: color-mix(in srgb, var(--gold) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--gold) 35%, transparent);
+}
+.result-card__rank {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--gold);
+}
+.result-card__rank strong {
+  font-size: 1.05rem;
+}
+.result-card__recap-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.result-card__recap-actions .btn {
+  flex: 1;
+  justify-content: center;
+}
 .result-card__board-toggle {
   width: 100%;
   margin-top: 0.6rem;
@@ -2572,6 +2599,20 @@ button.leaderboard__row.is-me:focus-visible {
 .replay__where {
   color: var(--ink-soft);
   font-size: 0.82rem;
+}
+.replay__rank {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.15rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--gold);
+  text-decoration: none;
+  width: fit-content;
+}
+.replay__rank:hover {
+  text-decoration: underline;
 }
 .replay__center {
   flex: 1;

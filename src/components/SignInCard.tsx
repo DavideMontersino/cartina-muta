@@ -7,6 +7,8 @@ import { NamePrompt } from "./NamePrompt";
 
 interface SignInCardProps {
   submission: ScoreSubmissionPayload | null;
+  /** Notified once the score saves, so the recap can show rank + share (GitHub #48). */
+  onSubmitted?: (result: SubmitScoreResult) => void;
 }
 
 type SubmitState =
@@ -21,7 +23,7 @@ type SubmitState =
  * - signed in without a name → prompt for one
  * - signed out → name + email magic-link form
  */
-export function SignInCard({ submission }: SignInCardProps) {
+export function SignInCard({ submission, onSubmitted }: SignInCardProps) {
   const { data: session, isPending } = useSession();
   const user = session?.user;
   const [submitState, setSubmitState] = useState<SubmitState>({
@@ -36,12 +38,13 @@ export function SignInCard({ submission }: SignInCardProps) {
     submitScore(submission).then((res) => {
       if (res.ok) {
         setSubmitState({ status: "done", result: res.value });
+        onSubmitted?.(res.value);
       } else {
         submittedRef.current = false;
         setSubmitState({ status: "error", message: res.error });
       }
     });
-  }, [user?.name, submission]);
+  }, [user?.name, submission, onSubmitted]);
 
   if (isPending) return null;
 
@@ -53,9 +56,7 @@ export function SignInCard({ submission }: SignInCardProps) {
         )}
         {submitState.status === "done" && (
           <p className="signin__hint signin__hint--center">
-            Sei nella classifica come <strong>{user.name}</strong> — posizione{" "}
-            <strong>#{submitState.result.rank}</strong> su{" "}
-            {submitState.result.totalPlayers}.
+            Sei nella classifica come <strong>{user.name}</strong>.
           </p>
         )}
         {submitState.status === "error" && (

@@ -4,6 +4,8 @@ import {
   decodeLeaderboardSearch,
   encodeLeaderboardSearch,
   gameReplayPath,
+  leaderboardPath,
+  modeLabel,
 } from "./constants";
 
 const MODES: GameMode[] = [
@@ -49,5 +51,28 @@ describe("game replay path (GitHub #48)", () => {
   it("builds a distinct, encoded /game/:id path", () => {
     expect(gameReplayPath("abc123")).toBe("/game/abc123");
     expect(gameReplayPath("a/b c")).toBe("/game/a%2Fb%20c");
+  });
+});
+
+describe("leaderboard path + mode label (GitHub #48)", () => {
+  it("links a recap to the exact board it belongs to", () => {
+    expect(
+      leaderboardPath(
+        "cn",
+        { kind: "timer", durationSeconds: 300 },
+        "hardcore",
+      ),
+    ).toBe("/leaderboard/cn?m=timer%3A300&d=hardcore");
+    const decoded = decodeLeaderboardSearch(
+      leaderboardPath("cn", { kind: "energy" }, "easy").split("?")[1],
+    );
+    expect(decoded).toEqual({ mode: { kind: "energy" }, difficulty: "easy" });
+  });
+
+  it("labels every mode", () => {
+    expect(modeLabel({ kind: "energy" })).toBe("Energia");
+    expect(modeLabel({ kind: "complete" })).toBe("Completa");
+    expect(modeLabel({ kind: "timer", durationSeconds: 60 })).toBe("1 min");
+    expect(modeLabel({ kind: "timer", durationSeconds: 600 })).toBe("10 min");
   });
 });

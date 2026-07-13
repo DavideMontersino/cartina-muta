@@ -79,3 +79,19 @@ export function decodeLeaderboardSearch(search: string): {
 export function gameReplayPath(gameId: string): string {
   return `/game/${encodeURIComponent(gameId)}`;
 }
+
+/** Path to the leaderboard for a specific mode + difficulty (GitHub #48). */
+export function leaderboardPath(
+  provinceId: string,
+  mode: GameMode,
+  difficulty: Difficulty,
+): string {
+  return `/leaderboard/${provinceId}?${encodeLeaderboardSearch(mode, difficulty)}`;
+}
+
+/** Short human label for a mode tab / recap line, e.g. "Energia" / "1 min". */
+export function modeLabel(mode: GameMode): string {
+  if (mode.kind === "energy") return "Energia";
+  if (mode.kind === "complete") return "Completa";
+  return `${mode.durationSeconds / 60} min`;
+}

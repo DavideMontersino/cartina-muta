@@ -1,6 +1,11 @@
 [
   {
     "date": "2026-07-13",
+    "sha": "PENDING",
+    "description": "A fine partita vedi subito la tua posizione in classifica, con un pulsante per condividere il replay e un collegamento diretto alla classifica di quella modalità e difficoltà. Anche la pagina di un replay condiviso mostra la posizione e rimanda alla classifica giusta."
+  },
+  {
+    "date": "2026-07-13",
     "sha": "51f3339113b6dfc54604b6aa964733278dbb3f13",
     "description": "Ogni partita rivista ha ora un suo link da condividere: dalla classifica puoi aprire il replay e copiarne il link con il pulsante Condividi. Il link della classifica ricorda anche la modalità e la difficoltà scelte, così chi lo apre vede esattamente la stessa classifica."
   },
