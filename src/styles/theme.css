@@ -11,6 +11,10 @@
   --olive-deep: #5f6b39;
   --teal: #4b7d74;
   --gold: #c99a4b;
+  /* Saturated, high-contrast pop for the give-up/skip reveal — deliberately
+     louder than the muted earthy palette so it reads as a flash, not a tint. */
+  --reveal-bright: #17d6c4;
+  --reveal-glow: #0a8c80;
 
   --region-pending: #e3d6ba;
   --region-hover: #d8c69f;
@@ -686,18 +690,30 @@ button {
   animation: shake 0.4s ease;
 }
 .region--reveal {
-  fill: var(--teal);
-  stroke: #2f5a52;
-  stroke-width: 1.4;
-  animation: pulse 1s ease;
+  fill: var(--reveal-bright);
+  stroke: var(--reveal-glow);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 6px var(--reveal-bright));
+  animation: reveal-flash 1.1s ease;
 }
-@keyframes pulse {
-  0%,
-  100% {
+@keyframes reveal-flash {
+  0% {
+    opacity: 0;
+  }
+  12% {
     opacity: 1;
   }
-  50% {
-    opacity: 0.55;
+  38% {
+    opacity: 0.5;
+  }
+  55% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 0.65;
+  }
+  100% {
+    opacity: 1;
   }
 }
 @keyframes shake {
@@ -723,9 +739,6 @@ button {
   paint-order: stroke;
   stroke: rgba(242, 233, 214, 0.85);
   stroke-width: 2px;
-}
-.region-label--missed {
-  fill: var(--terracotta);
 }
 
 /* ── Map context + terrain ─────────────────────────────────────────────────
@@ -857,9 +870,10 @@ button {
   stroke: var(--terracotta);
 }
 .map-canvas--hide-borders .region--reveal {
-  fill: var(--teal);
-  stroke: #2f5a52;
-  stroke-width: 1.4;
+  fill: var(--reveal-bright);
+  stroke: var(--reveal-glow);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 6px var(--reveal-bright));
 }
 
 /* Hardcore: the province's outer boundary is the one frame the player gets —

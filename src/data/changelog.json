@@ -1,8 +1,8 @@
 [
   {
     "date": "2026-07-13",
-    "sha": "6aba6448bec8b4cb32fe0b8d6bba07b87bf109cf",
-    "description": "Quando salti un comune (o lo mostri per rinuncia), ora il suo nome resta visibile sulla mappa come per quelli indovinati. Il messaggio con la risposta è stato spostato più in basso, così non copre più il comune appena rivelato."
+    "sha": "0000000000000000000000000000000000000000",
+    "description": "Quando salti un comune (o lo mostri per rinuncia), il lampo colorato che lo evidenzia sulla mappa ora è molto più acceso e visibile. Il messaggio con la risposta è stato spostato più in basso, così non copre più il comune appena rivelato."
   },
   {
     "date": "2026-07-13",
