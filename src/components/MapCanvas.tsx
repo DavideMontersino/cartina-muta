@@ -537,15 +537,16 @@ export const MapCanvas = forwardRef<MapCanvasRef, MapCanvasProps>(
             })}
           </g>
 
-          {/* Found-comune labels. */}
+          {/* Found + missed comune labels — a skip/miss also reveals the
+              name, matching the "Salta / mostra" promise, not just found ones. */}
           <g className="labels" pointerEvents="none">
             {shapes.map((s, i) =>
-              status[i] === "found" ? (
+              status[i] === "found" || status[i] === "missed" ? (
                 <text
                   key={map.features[i].istat}
                   x={s.cx}
                   y={s.cy}
-                  className="region-label"
+                  className={`region-label ${status[i] === "missed" ? "region-label--missed" : ""}`}
                 >
                   {map.features[i].name}
                 </text>

@@ -608,6 +608,11 @@ button {
 }
 .reaction-toast--fail {
   color: var(--ink-soft);
+  /* The give-up reveal names + highlights a comune that can land anywhere on
+     the map — pin the popup to the lower third (mirrors .wrong-name-toast)
+     so it never sits on top of the very region it's revealing. */
+  top: auto;
+  bottom: 12%;
 }
 .reaction-toast__campanile {
   width: auto;
@@ -718,6 +723,9 @@ button {
   paint-order: stroke;
   stroke: rgba(242, 233, 214, 0.85);
   stroke-width: 2px;
+}
+.region-label--missed {
+  fill: var(--terracotta);
 }
 
 /* ── Map context + terrain ─────────────────────────────────────────────────
@@ -1158,13 +1166,15 @@ button {
   color: var(--ink-soft);
   letter-spacing: 0.02em;
 }
-/* Energy mode's trivia fact + campanile photo popup: centered over the map
-   (not anchored top/bottom like the toasts above, which it can coexist with),
-   shown for longer since it may carry a photo to actually look at. */
+/* Energy mode's trivia fact + campanile photo popup, shown after the
+   give-up/3rd-miss reveal. Pinned to the lower third (like .wrong-name-toast)
+   rather than dead-centre, so it never sits on top of the comune it's
+   revealing — the reveal highlight can land anywhere on the map. */
 .energy-fact-toast {
-  top: 50%;
+  top: auto;
+  bottom: 12%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
   z-index: 6;
   pointer-events: all;
   cursor: pointer;

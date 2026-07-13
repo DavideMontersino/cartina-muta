@@ -1,6 +1,11 @@
 [
   {
     "date": "2026-07-13",
+    "sha": "0000000000000000000000000000000000000000",
+    "description": "Quando salti un comune (o lo mostri per rinuncia), ora il suo nome resta visibile sulla mappa come per quelli indovinati. Il messaggio con la risposta è stato spostato più in basso, così non copre più il comune appena rivelato."
+  },
+  {
+    "date": "2026-07-13",
     "sha": "166e0b665ab08c725245a80e6bd7194f1de3e2bb",
     "description": "A fine partita vedi subito la tua posizione in classifica, con un pulsante per condividere il replay e un collegamento diretto alla classifica di quella modalità e difficoltà. Anche la pagina di un replay condiviso mostra la posizione e rimanda alla classifica giusta."
   },
